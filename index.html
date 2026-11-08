@@ -1013,28 +1013,69 @@
         ⚠️ {{ aiErrorMessage }}
       </div>
 
-      <!-- Results Preview List -->
-      <div v-if="scanResults.length > 0" class="flex-1 overflow-y-auto space-y-2 pr-1 mb-4 border-t border-slate-100 pt-3">
-        <div class="flex items-center justify-between">
-          <h4 class="text-xs font-bold text-slate-700">辨識成功！請核對分數 (共 {{ scanResults.length }} 項記錄)：</h4>
-          <button @click="scanResults = []" class="text-[10px] text-slate-400 hover:text-slate-600">清空</button>
+      <!-- Results & Unclear Items Preview List -->
+      <div v-if="scanResults.length > 0 || unclearItems.length > 0" class="flex-1 overflow-y-auto space-y-3 pr-1 mb-4 border-t border-slate-100 pt-3">
+        
+        <!-- Recognized Results List -->
+        <div v-if="scanResults.length > 0">
+          <div class="flex items-center justify-between mb-1.5">
+            <h4 class="text-xs font-bold text-slate-700">✅ 成功辨識項目 (共 {{ scanResults.length }} 筆)：</h4>
+            <button @click="scanResults = []" class="text-[10px] text-slate-400 hover:text-slate-600">清空辨識</button>
+          </div>
+
+          <div class="space-y-1.5">
+            <div v-for="(item, idx) in scanResults" :key="idx" class="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-600">#{{ item.num }}</span>
+                <span class="font-bold text-slate-800">{{ item.name }}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1">
+                  <span class="text-slate-500 font-bold">分數:</span>
+                  <input type="number" v-model.number="item.points" class="w-16 px-2 py-0.5 bg-slate-100 rounded text-center font-bold">
+                </div>
+                <button @click="scanResults.splice(idx, 1)" class="text-rose-500 hover:text-rose-700">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div v-for="(item, idx) in scanResults" :key="idx" class="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-slate-600">#{{ item.num }}</span>
-            <span class="font-bold text-slate-800">{{ item.name }}</span>
+        <!-- Unclear / Skipped Items Warning List -->
+        <div v-if="unclearItems.length > 0" class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-1.5">
+          <div class="flex items-center justify-between text-amber-900 font-extrabold">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+              <span>⚠️ 跳過不清晰/未能辨識筆跡 (請手動核對):</span>
+            </span>
+            <button @click="unclearItems = []" class="text-[10px] text-amber-600 hover:text-amber-800">隱藏提示</button>
           </div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1">
-              <span class="text-slate-500 font-bold">分數:</span>
-              <input type="number" v-model.number="item.points" class="w-16 px-2 py-0.5 bg-slate-100 rounded text-center font-bold">
-            </div>
-            <button @click="scanResults.splice(idx, 1)" class="text-rose-500 hover:text-rose-700">
-              <i class="fa-solid fa-trash-can"></i>
+          <ul class="list-disc list-inside text-[11px] text-amber-800 space-y-1 pl-1">
+            <li v-for="(note, nIdx) in unclearItems" :key="nIdx">{{ note }}</li>
+          </ul>
+        </div>
+
+        <!-- Manual Input Supplement Bar -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+          <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
+            <i class="fa-solid fa-pen-to-square text-indigo-500"></i>
+            <span>➕ 手動補填 / 新增座號分數</span>
+          </h4>
+          <div class="flex gap-2">
+            <select v-model="manualAddSeat" class="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 font-bold">
+              <option value="">選擇學生座號 / 姓名...</option>
+              <option v-for="st in students" :key="st.id" :value="st.num">
+                #{{ st.num }} {{ st.name }}
+              </option>
+            </select>
+            <input type="number" v-model.number="manualAddPoints" placeholder="分" class="w-16 px-2 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-center">
+            <button @click="addManualScanItem" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">
+              加入
             </button>
           </div>
         </div>
+
       </div>
 
       <button 
@@ -1370,6 +1411,9 @@ function initVueApp() {
       const aiImagePreview = ref('');
       const isScanning = ref(false);
       const scanResults = ref([]);
+      const unclearItems = ref([]);
+      const manualAddSeat = ref('');
+      const manualAddPoints = ref(1);
       const aiErrorMessage = ref('');
 
       const toastMessage = ref('');
@@ -1718,6 +1762,7 @@ function initVueApp() {
 
         isScanning.value = true;
         scanResults.value = [];
+        unclearItems.value = [];
 
         const candidateModels = [
           'gemini-3.8-flash',
@@ -1732,11 +1777,20 @@ List of Class 2B students:
 21: 梁晞雅, 22: 梁凱博, 23: 梁珼怡, 24: 梁禮昭, 25: 梁祐喬, 26: 李宗睿, 27: 李雨桐, 28: 廖珞謙, 29: 劉朋朋, 30: 邱添,
 31: 蕭沛楠, 32: 曾憲熙, 33: 謝明曦, 34: 文思穎, 35: 黃靖恩, 36: 黃正然, 37: 王嘉昕, 38: 黃煒晉, 39: 黃宇芊, 40: 吳凱峰, 41: 張晨宇.
 
-Extract seat numbers and scores. Output strictly a JSON array of objects without markdown:
-[
-  {"num": 1, "points": 2},
-  {"num": 5, "points": 1}
-]`;
+Rules:
+1. Clear seat numbers/scores MUST be placed into "recognized".
+2. If any seat number, mark, or handwriting is unclear, blurry, smudged, or ambiguous, DO NOT guess it into "recognized". SKIP IT from "recognized" and describe the unclear handwriting item in Chinese in the "unclear" list (e.g. "右上角筆跡模糊數字 (似 7 或 9)", "座號 12 旁邊有寫法不清晰的符號").
+
+Output strictly a JSON object:
+{
+  "recognized": [
+    {"num": 1, "points": 2},
+    {"num": 5, "points": 1}
+  ],
+  "unclear": [
+    "右上角筆跡模糊數字 (似 7 或 9)"
+  ]
+}`;
 
         let responseText = null;
         let lastError = null;
@@ -1788,13 +1842,23 @@ Extract seat numbers and scores. Output strictly a JSON array of objects without
         }
 
         try {
-          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-          if (!jsonMatch) throw new Error('解析結果不符合 JSON 陣列格式');
+          const jsonObjMatch = responseText.match(/\{[\s\S]*\}/);
+          const jsonArrMatch = responseText.match(/\[[\s\S]*\]/);
           
-          const parsed = JSON.parse(jsonMatch[0]);
-          const mapped = [];
+          let parsedData = null;
+          if (jsonObjMatch) {
+            parsedData = JSON.parse(jsonObjMatch[0]);
+          } else if (jsonArrMatch) {
+            parsedData = { recognized: JSON.parse(jsonArrMatch[0]), unclear: [] };
+          } else {
+            throw new Error('解析結果不符合 JSON 格式');
+          }
 
-          parsed.forEach(item => {
+          const recognizedList = Array.isArray(parsedData.recognized) ? parsedData.recognized : (Array.isArray(parsedData) ? parsedData : []);
+          const unclearList = Array.isArray(parsedData.unclear) ? parsedData.unclear : [];
+
+          const mapped = [];
+          recognizedList.forEach(item => {
             const studentNumStr = String(item.num).padStart(2, '0');
             const matchedStudent = students.value.find(s => s.num === studentNumStr || Number(s.num) === Number(item.num));
             if (matchedStudent) {
@@ -1808,9 +1872,36 @@ Extract seat numbers and scores. Output strictly a JSON array of objects without
           });
 
           scanResults.value = mapped;
-          showToast(`Gemini 3.8 AI 辨識完畢，找到 ${mapped.length} 筆紀錄！`);
+          unclearItems.value = unclearList;
+
+          if (mapped.length > 0 || unclearList.length > 0) {
+            showToast(`辨識完成: ${mapped.length} 筆成功，${unclearList.length} 筆不清晰待核對`);
+          } else {
+            aiErrorMessage.value = '未能辨識出清晰數字，請手動補填或重新拍攝。';
+          }
         } catch (err) {
-          aiErrorMessage.value = '解析 AI 結果時發生格式錯誤，請重新拍攝清晰圖片。';
+          aiErrorMessage.value = '解析 AI 結果時發生格式錯誤，請重新拍攝圖片。';
+        }
+      };
+
+      const addManualScanItem = () => {
+        if (!manualAddSeat.value) return;
+        const target = students.value.find(s => s.num === manualAddSeat.value);
+        if (target) {
+          const existing = scanResults.value.find(r => r.studentId === target.id);
+          if (existing) {
+            existing.points += (manualAddPoints.value || 1);
+          } else {
+            scanResults.value.push({
+              num: target.num,
+              name: target.name,
+              studentId: target.id,
+              points: manualAddPoints.value || 1
+            });
+          }
+          showToast(`已補填 #${target.num} ${target.name} (+${manualAddPoints.value || 1}分)`);
+          manualAddSeat.value = '';
+          manualAddPoints.value = 1;
         }
       };
 
@@ -1890,6 +1981,9 @@ Extract seat numbers and scores. Output strictly a JSON array of objects without
         aiImagePreview,
         isScanning,
         scanResults,
+        unclearItems,
+        manualAddSeat,
+        manualAddPoints,
         aiErrorMessage,
         toastMessage,
         generateVividMonsterSvg,
@@ -1920,6 +2014,7 @@ Extract seat numbers and scores. Output strictly a JSON array of objects without
         saveApiKey,
         handleImageUpload,
         processWhiteboardImage,
+        addManualScanItem,
         applyScanResults,
         resetAllScores,
         exportData,
