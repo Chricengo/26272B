@@ -998,17 +998,17 @@
         <div class="mb-4 pb-3 border-b border-slate-100">
           <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
             <i class="fa-solid fa-camera text-rose-500"></i>
-            <span>📸 拍照 AI 白板計分 (Gemini 3 Thinking 學號專用版)</span>
+            <span>📸 拍照 AI 智能計分 (逗號/數字相隔專用版)</span>
           </h3>
-          <p class="text-xs text-slate-500">只需拍攝寫有「學號/座號」與分數（例如 1 +2, 05 -1, 12 3分）的白板照片，AI 將自動辨識對應學生！</p>
+          <p class="text-xs text-slate-500">拍攝紙張、筆記、白板或螢幕照片，支援以逗號、空格相隔的學號（例如：1, 3, 5 或 02, 07, 12 各+2）！</p>
         </div>
 
         <!-- Image Upload Area -->
         <div class="mb-4">
           <label class="cursor-pointer bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-4 text-center transition flex flex-col items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-2xl text-rose-500"></i>
-            <span class="text-xs font-bold text-slate-700">點擊選擇白板照片 / 使用裝置拍照</span>
-            <span class="text-[10px] text-slate-400">支援 JPG, PNG 格式照片</span>
+            <span class="text-xs font-bold text-slate-700">點擊選擇照片 / 使用裝置拍攝數字名單</span>
+            <span class="text-[10px] text-slate-400">支援 JPG, PNG 格式（紙張、筆記本、白板、螢幕均可）</span>
             <input type="file" accept="image/*" capture="environment" @change="handleImageUpload" class="hidden">
           </label>
         </div>
@@ -1899,7 +1899,7 @@
 
         const processWhiteboardImage = async () => {
           if (!aiImageBase64.value) {
-            showToast('請先選擇或拍攝白板照片！');
+            showToast('請先選擇或拍攝照片！');
             return;
           }
 
@@ -1908,22 +1908,21 @@
 
           try {
             const studentRosterStr = students.value.map(s => `${s.num}號:${s.name}`).join(', ');
-            const systemPrompt = `你是一位精通手寫字與白板視覺辨識 (OCR) 的班級 AI 專家。
-老師拍下了課堂白板照片，白板上記錄著學生的座號（學號 1 至 41）。
+            const systemPrompt = `你是一位精通手寫字、印刷體與圖像視覺辨識 (OCR) 的班級 AI 專家。
+老師拍攝了寫有學生學號與分數的照片（載體可能為紙張、筆記本、便條紙、白板、黑板或螢幕）。
 
-【手寫字與白板辨識指令】：
-1. 仔細掃描圖像中的所有手寫文字、數字、符號、劃記與列表。白板筆手寫字可能傾斜、粗細不一或有燈光反光。
-2. 辨識所有代表學生座號的數字 (如: 1, 01, 2, 02, 5, 12, 35 ... 等數字)。
-3. 計分邏輯：
-   - 白板上寫一次學號代表加 1 分 (+1)。
-   - 如果同一個學號在不同區域、欄位出現多次，請將次數加總為總分數（例如寫了 3 次 1 號，即計算為 3 分）。
-   - 若學號旁邊有明確手寫數字（如 "1 +2" 或 "05 3"），請以手寫的分數為主。
-4. 將辨識出的學號精確比對 2B 班名單：
+【核心辨識與計分邏輯】：
+1. 圖像包含任何以「逗號 (,)」、「中文逗號 (，)」、「空格」、「頓號 (、)」或「換行」分隔的數字/學號列表（例如：「1, 3, 5, 12」或「01, 04, 08, 20」或「1,3,5 各+2」或「2, 6, 9 -1」）。
+2. 請精確拆解每個代表學生座號的數字（1 至 41 號）：
+   - 以逗號/空格分隔列表中的每個學號，預設個別計算為加 1 分 (+1)。例如「1, 3, 5」代表 1號+1分、3號+1分、5號+1分。
+   - 若列表中有註記集體分數（如「1, 3, 5 各+2」或「2, 6 -1」），請將該分數套用到列表中的所有學號。
+   - 若同一學號在不同位置重複出現，請累加其分數。
+3. 將辨識出的學號精確比對 2B 班 41 位學生名單：
    ${studentRosterStr}
 
 請務必返回嚴格 JSON 陣列：
 [
-  { "num": "01", "name": "陳柏立", "points": 1, "reason": "辨識到手寫學號 1 (出現1次)" }
+  { "num": "01", "name": "陳柏立", "points": 1, "reason": "辨識到逗號分隔學號 1 (+1分)" }
 ]`;
 
             const apiKey = "";
@@ -1934,7 +1933,7 @@
                 {
                   role: 'user',
                   parts: [
-                    { text: '請仔細檢視並辨識照片中白板上記錄的所有手寫學號與數字，計算每位學生獲得的分數：' },
+                    { text: '請仔細檢視並辨識照片中以逗號、空格或換行相隔的手寫/列印學號與數字，計算每位學生獲得的分數：' },
                     {
                       inlineData: {
                         mimeType: aiMimeType.value,
@@ -1981,13 +1980,13 @@
                 showToast(`🎉 成功辨識 ${parsed.length} 項學號加分記錄！`);
                 playChimeSound('gift');
               } else {
-                showToast('未在照片中辨識到明確的手寫學號。請嘗試拍得更清楚或接近白板。');
+                showToast('未在照片中辨識到明確的手寫學號。請嘗試拍得更清楚。');
               }
             } else {
-              showToast('辨識失敗，請重新拍攝清晰的白板照片。');
+              showToast('辨識失敗，請重新拍攝清晰的照片。');
             }
           } catch (err) {
-            console.error('AI Whiteboard Scan Error:', err);
+            console.error('AI Image Scan Error:', err);
             showToast('AI 分析過程發生錯誤，請重試。');
           } finally {
             isScanning.value = false;
