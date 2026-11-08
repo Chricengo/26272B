@@ -1017,6 +1017,7 @@
           <input 
             type="password" 
             v-model="userApiKey" 
+            @input="saveApiKey"
             @change="saveApiKey"
             placeholder="貼上您的 Gemini API Key (例如 AQ... 或 AIza...)" 
             class="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
@@ -1872,38 +1873,43 @@
           const file = e.target.files[0];
           if (!file) return;
 
-          aiMimeType.value = file.type || 'image/jpeg';
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-              const maxDim = 1600;
+          // Always output JPEG from Canvas to ensure compatibility with Gemini API & iPhone HEIC
+          aiMimeType.value = 'image/jpeg';
+          
+          // Use ObjectURL for high performance on iOS Safari memory management
+          const objectUrl = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1200;
 
-              if (width > maxDim || height > maxDim) {
-                if (width > height) {
-                  height = Math.round((height * maxDim) / width);
-                  width = maxDim;
-                } else {
-                  width = Math.round((width * maxDim) / height);
-                  height = maxDim;
-                }
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
               }
+            }
 
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0, width, height);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
 
-              const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-              aiImagePreview.value = resizedDataUrl;
-              aiImageBase64.value = resizedDataUrl.split(',')[1];
-            };
-            img.src = evt.target.result;
+            const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            aiImagePreview.value = resizedDataUrl;
+            aiImageBase64.value = resizedDataUrl.split(',')[1];
+            URL.revokeObjectURL(objectUrl);
           };
-          reader.readAsDataURL(file);
+          img.onerror = () => {
+            showToast('⚠️ 相片載入失敗，請重新拍攝');
+            URL.revokeObjectURL(objectUrl);
+          };
+          img.src = objectUrl;
         };
 
         const processWhiteboardImage = async () => {
@@ -1925,7 +1931,7 @@
           const prompt = `你是 2B 班級白板與筆記辨識助手。
 照片內容為寫有學號、座號或數字的紙張、筆記本、白板或螢幕。
 【嚴格規則】：
-1. 白板或紙上上記錄的是學號/座號（1 至 41 號），寫一次代表該學生 +1 分。
+1. 白板或紙上記錄的是學號/座號（1 至 41 號），寫一次代表該學生 +1 分。
 2. 數字可能以逗號相隔（如 "1, 3, 5, 12"）、空格、頓號或分行寫出。如果寫著 "1, 3, 5 各+2"，則 1、3、5 號各自加 2 分。若無特別標註加幾分，出現一次學號即算 +1 分。
 3. 2B 班全班學生名單：
 01 陳柏立, 02 陳弘量, 03 陳弈之, 04 鄭芊楠, 05 張可宜, 06 張素文, 07 周景謙, 08 周葆妍, 09 徐歌, 10 鍾允陶,
@@ -1961,8 +1967,8 @@
                     parts: [
                       { text: prompt },
                       {
-                        inline_data: {
-                          mime_type: aiMimeType.value || 'image/jpeg',
+                        inlineData: {
+                          mimeType: 'image/jpeg',
                           data: aiImageBase64.value
                         }
                       }
@@ -1979,14 +1985,14 @@
                 console.warn(`Model ${model} failed:`, lastErrorMsg);
               }
             } catch (e) {
-              lastErrorMsg = `[${model}] Exception: ${e.message}`;
+              lastErrorMsg = `網路連線失敗 (${e.message})`;
               console.warn(`Model ${model} exception:`, e);
             }
           }
 
           if (!response || !response.ok) {
             isScanning.value = false;
-            showToast(`❌ 辨識失敗: ${lastErrorMsg || 'API Key 驗證失敗'}`);
+            showToast(`❌ 辨識失敗: ${lastErrorMsg || 'API 驗證無效'}`);
             return;
           }
 
