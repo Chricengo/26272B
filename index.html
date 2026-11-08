@@ -1,958 +1,1199 @@
-<!-- TOP HEADER NAVBAR -->
-<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm print:hidden">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-    
-    <!-- Logo & Class Title -->
-    <div class="flex items-center space-x-3">
-      <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white text-xl shadow-md">
-        <i class="fa-solid fa-graduation-cap"></i>
-      </div>
-      <div>
-        <div class="flex items-center space-x-2">
-          <h1 class="text-xl font-bold tracking-tight text-slate-800">2B 班級計分系統</h1>
-          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-            全班總分: {{ totalClassPoints }}
-          </span>
-        </div>
-        <p class="text-xs text-slate-500">每 30 分即可兌換 1 份禮物 🎁</p>
-      </div>
-    </div>
-
-    <!-- Quick Stats & Tools -->
-    <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-      <div class="relative">
-        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-        <input 
-          type="text" 
-          v-model="searchQuery"
-          placeholder="搜尋學生名字或座號..."
-          class="pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-slate-100 border border-transparent rounded-xl focus:bg-white focus:border-emerald-500 focus:outline-none transition w-36 sm:w-52"
-        >
-      </div>
-
-      <button 
-        @click="activeModal = 'recess'"
-        class="relative px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-        :class="recessStudentsCount > 0 ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-      >
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>留小息 ({{ recessStudentsCount }})</span>
-      </button>
-      
-      <button 
-        @click="activeModal = 'summary'"
-        class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
-      >
-        <i class="fa-solid fa-chart-pie"></i>
-        <span>總結看板</span>
-      </button>
-
-      <button 
-        @click="activeModal = 'leaderboard'"
-        class="px-3 py-1.5 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-      >
-        <i class="fa-solid fa-trophy"></i>
-        <span>換領排行榜</span>
-      </button>
-    </div>
-
-  </div>
-</header>
-
-<!-- MAIN CLASSROOM CONTENT -->
-<main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6 print:hidden">
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>2B 班級計分與禮物系統 (Gemini 3.8 Flash 優先版)</title>
   
-  <!-- Action Toolbar -->
-  <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
+  <!-- Tailwind CSS & FontAwesome CDNs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    /* Native Fallback Styles if CDNs are blocked */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
     
-    <div class="flex items-center gap-2 flex-wrap">
-      <button 
-        @click="openBulkPointModal(filteredStudents)"
-        class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl text-sm font-bold shadow hover:shadow-md transition active:scale-95 flex items-center gap-2"
-      >
-        <i class="fa-solid fa-users"></i>
-        <span>全班加/扣分</span>
-      </button>
+    /* Touch Physics & iOS Safe Area Scrolling */
+    .touch-scroll {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
 
-      <button 
-        @click="toggleMultipleMode"
-        :class="isMultipleMode ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-        class="px-4 py-2 rounded-xl text-sm font-bold transition active:scale-95 flex items-center gap-2"
-      >
-        <i class="fa-solid fa-check-double"></i>
-        <span>{{ isMultipleMode ? '取消多選' : '多選學生' }}</span>
-      </button>
+    /* Modal Backdrop Transitions */
+    .modal-backdrop {
+      background-color: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+    }
+    
+    /* Monster Avatar Hover Effects */
+    .monster-avatar-container {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .student-card:hover .monster-avatar-container {
+      transform: scale(1.08) rotate(-2deg);
+    }
 
-      <template v-if="isMultipleMode">
-        <button @click="selectAllStudents" class="px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold">全選</button>
-        <button @click="selectedMultiple = []" class="px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold">清空選擇</button>
-        <button 
-          v-if="selectedMultiple.length > 0"
-          @click="openBulkPointModal(getSelectedStudentObjects())"
-          class="px-4 py-2 bg-indigo-500 text-white rounded-xl text-sm font-bold shadow hover:bg-indigo-600 transition"
-        >
-          給已選 {{ selectedMultiple.length }} 人加分
-        </button>
-      </template>
+    /* Progress bar smooth transition */
+    .progress-fill {
+      transition: width 0.4s ease-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- Main Application Header -->
+  <header class="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="bg-white/20 p-2.5 rounded-2xl backdrop-blur-md flex items-center justify-center text-white text-2xl shadow-inner">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+            2B 班級計分與禮物系統
+            <span class="text-xs bg-emerald-800/60 text-emerald-100 px-2.5 py-0.5 rounded-full font-semibold border border-white/20">
+              Gemini 3.8 Flash AI 增強版
+            </span>
+          </h1>
+          <p class="text-xs text-emerald-100 font-medium hidden sm:block">每 30 分即可兌換 1 份禮物 🎁 ‧ 41 位學生系統</p>
+        </div>
+      </div>
+
+      <!-- Class Statistics Summary Bar -->
+      <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-semibold">
+        <div class="bg-white/15 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 flex items-center gap-2">
+          <i class="fa-solid fa-star text-amber-300"></i>
+          <span>全班總分: <span id="stat-total-points" class="text-base font-bold text-amber-200">0</span></span>
+        </div>
+        <div class="bg-white/15 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 flex items-center gap-2">
+          <i class="fa-solid fa-gift text-pink-300"></i>
+          <span>已換禮物: <span id="stat-total-gifts" class="text-base font-bold text-pink-200">0</span> 份</span>
+        </div>
+        <div id="stat-recess-badge" class="bg-rose-500/80 px-3 py-1.5 rounded-xl text-white font-bold animate-pulse cursor-pointer hidden flex items-center gap-1.5" onclick="openModal('recessModal')">
+          <i class="fa-solid fa-bell"></i>
+          <span>留小息: <span id="stat-recess-count">0</span> 人</span>
+        </div>
+      </div>
     </div>
+  </header>
 
-    <!-- Quick Classroom Tools -->
-    <div class="flex items-center gap-2 flex-wrap">
-      <button 
-        @click="activeModal = 'aiScanner'" 
-        class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl text-xs font-bold hover:from-rose-600 hover:to-pink-600 transition flex items-center gap-1.5 shadow-sm active:scale-95"
-      >
-        <i class="fa-solid fa-camera"></i>
-        <span>📸 拍照 AI 計分 (Gemini 3.8 Flash)</span>
-      </button>
+  <!-- Main Content Layout -->
+  <main class="max-w-7xl mx-auto px-4 py-4 sm:py-6 flex-1 w-full space-y-4 sm:space-y-6">
 
-      <button @click="activeModal = 'random'" class="px-3.5 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold hover:bg-amber-600 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-dice"></i>
-        <span>隨機抽籤</span>
-      </button>
-
-      <button @click="activeModal = 'timer'" class="px-3.5 py-2 bg-sky-500 text-white rounded-xl text-xs font-bold hover:bg-sky-600 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-stopwatch"></i>
-        <span>倒數計時</span>
-      </button>
-
-      <button @click="activeModal = 'group'" class="px-3.5 py-2 bg-violet-500 text-white rounded-xl text-xs font-bold hover:bg-violet-600 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-layer-group"></i>
-        <span>隨機分組</span>
-      </button>
-
-      <button @click="activeModal = 'attendance'" class="px-3.5 py-2 bg-teal-600 text-white rounded-xl text-xs font-bold hover:bg-teal-700 transition flex items-center gap-1.5">
-        <i class="fa-solid fa-clipboard-user"></i>
-        <span>考勤記錄</span>
-      </button>
+    <!-- Action Toolbar Controls -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-3 sm:p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
       
-      <button @click="randomizeAllAvatars" title="一鍵隨機換全班怪獸頭像" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">
-        <i class="fa-solid fa-shuffle"></i>
-      </button>
-    </div>
-
-  </div>
-
-  <!-- STUDENT GRID (41 Class 2B Students) -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-    
-    <div 
-      v-for="student in filteredStudents" 
-      :key="student.id"
-      @click="handleStudentCardClick(student)"
-      class="bg-white rounded-2xl border transition-all duration-200 p-2.5 sm:p-3 flex flex-col items-center justify-between relative group cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-98"
-      :class="[
-        isStudentSelected(student.id) ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/20' : 'border-slate-200/90',
-        student.stayRecess ? 'pulse-glow-red border-rose-400 bg-rose-50/30' : '',
-        student.points >= 30 ? 'pulse-glow-green' : ''
-      ]"
-    >
-      <div class="w-full flex items-center justify-between mb-1">
-        <span class="text-xs font-extrabold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-          #{{ student.num }}
-        </span>
-
-        <div class="flex items-center gap-1">
-          <span 
-            v-if="student.attendance !== 'present'"
-            class="text-[10px] font-bold px-1.5 py-0.5 rounded"
-            :class="{
-              'bg-rose-100 text-rose-600': student.attendance === 'absent',
-              'bg-amber-100 text-amber-700': student.attendance === 'late',
-              'bg-blue-100 text-blue-700': student.attendance === 'leave'
-            }"
-          >
-            {{ getAttendanceLabel(student.attendance) }}
-          </span>
-
-          <span v-if="student.stayRecess" title="留小息學生" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-600 text-white animate-bounce">
-            🚨 留小息
-          </span>
-
-          <input 
-            v-if="isMultipleMode"
-            type="checkbox"
-            :checked="isStudentSelected(student.id)"
-            class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-            @click.stop
-            @change="toggleSelectStudent(student.id)"
-          >
+      <!-- Search & Multi-Select Input -->
+      <div class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-md">
+        <div class="relative w-full">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="searchInput" placeholder="搜尋學生姓名或座號 (例如: 1, 07, 周景謙)..." 
+                 oninput="handleSearch(this.value)"
+                 class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
         </div>
+        <button id="btn-toggle-multiselect" onclick="toggleMultiSelectMode()" 
+                class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap border border-slate-300">
+          <i class="fa-solid fa-square-check text-slate-500"></i>
+          <span>多選模式</span>
+        </button>
       </div>
 
-      <!-- ClassDojo Avatar -->
-      <div class="w-20 h-20 sm:w-22 sm:h-22 my-1 relative avatar-float flex items-center justify-center">
-        <div v-html="generateVividMonsterSvg(student.seed)" class="w-full h-full drop-shadow-sm"></div>
+      <!-- Feature Tool Buttons -->
+      <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+        <!-- AI Scanner Primary Button -->
+        <button onclick="openModal('aiModal')" class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 border border-rose-400/30">
+          <i class="fa-solid fa-camera-retro text-base"></i>
+          <span>拍照 AI 計分 (Gemini 3.8)</span>
+        </button>
         
-        <div 
-          v-if="student.points >= 30"
-          class="absolute -top-1 -right-1 bg-amber-400 text-amber-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow border border-white animate-bounce"
-        >
-          🎁 可換 {{ Math.floor(student.points / 30) }} 份
-        </div>
-      </div>
-
-      <div class="text-center w-full mt-1">
-        <h3 class="font-bold text-slate-800 text-sm sm:text-base leading-tight truncate">
-          {{ student.name }}
-        </h3>
-        
-        <p v-if="student.note" class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-1 truncate" :title="student.note">
-          📝 {{ student.note }}
-        </p>
-      </div>
-
-      <div class="w-full mt-2 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
-        <div class="flex items-center justify-between bg-emerald-50 px-2 py-1 rounded-xl">
-          <span class="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
-            <i class="fa-solid fa-star text-emerald-500"></i> 可用分
-          </span>
-          <span class="text-xs font-black text-emerald-600">{{ student.points }}</span>
-        </div>
-
-        <div class="flex items-center justify-between bg-purple-50 px-2 py-1 rounded-xl">
-          <span class="text-[11px] font-bold text-purple-800 flex items-center gap-1">
-            <i class="fa-solid fa-gift text-purple-500"></i> 已換禮物
-          </span>
-          <span class="text-xs font-black text-purple-600">{{ student.redeemedPoints }}分 ({{ student.redeemedCount }}份)</span>
-        </div>
-
-        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden relative mt-0.5">
-          <div 
-            class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-300"
-            :style="{ width: Math.min(100, ((student.points % 30) / 30) * 100) + '%' }"
-          ></div>
-        </div>
-        <div class="flex justify-between text-[9px] text-slate-400 font-bold px-0.5">
-          <span>進度: {{ student.points % 30 }}/30</span>
-          <span v-if="student.points < 30">還差 {{ 30 - (student.points % 30) }} 分</span>
-          <span v-else class="text-emerald-600 font-extrabold">已達標!</span>
-        </div>
-      </div>
-
-      <div class="w-full grid grid-cols-2 gap-1 mt-2">
-        <button @click.stop="openPointModal(student)" class="py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
-          <i class="fa-solid fa-plus-minus text-[10px]"></i>
-          <span>加/扣分</span>
+        <button onclick="openModal('lotteryModal')" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-dice"></i>
+          <span>隨機抽籤</span>
         </button>
-        <button @click.stop="openGiftModal(student)" class="py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1">
-          <i class="fa-solid fa-gift text-[10px]"></i>
-          <span>換禮物</span>
+
+        <button onclick="openModal('timerModal')" class="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-stopwatch"></i>
+          <span>倒數計時</span>
         </button>
-      </div>
 
-    </div>
+        <button onclick="openModal('groupModal')" class="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-users-viewfinder"></i>
+          <span>隨機分組</span>
+        </button>
 
-  </div>
-
-</main>
-
-<!-- FOOTER -->
-<footer class="bg-white border-t border-slate-200 py-3 px-4 mt-auto print:hidden">
-  <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
-    <div>
-      <span>2B 班級專用版 • 41 位學生名單已載入</span>
-    </div>
-    <div class="flex items-center gap-4">
-      <button @click="exportData" class="hover:text-slate-800 transition">
-        <i class="fa-solid fa-download"></i> 匯出備份
-      </button>
-      <button @click="activeModal = 'resetConfirm'" class="hover:text-rose-600 transition">
-        <i class="fa-solid fa-rotate-left"></i> 重置全班系統
-      </button>
-    </div>
-  </div>
-</footer>
-
-<!-- ==================== MODALS ==================== -->
-
-<!-- MODAL 1: SINGLE STUDENT POINT MODAL -->
-<div v-if="activeModal === 'point' && selectedStudent" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 relative">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
-      <div class="w-16 h-16 relative">
-        <div v-html="generateVividMonsterSvg(selectedStudent.seed)" class="w-full h-full"></div>
-      </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-md">#{{ selectedStudent.num }}</span>
-          <h3 class="text-xl font-bold text-slate-800">{{ selectedStudent.name }}</h3>
-          <button @click="randomizeSingleAvatar(selectedStudent)" title="隨機換頭像" class="text-xs text-slate-400 hover:text-indigo-600">
-            <i class="fa-solid fa-dice"></i> 換頭像
-          </button>
-        </div>
-        <div class="flex items-center gap-3 text-xs mt-1">
-          <span class="text-emerald-600 font-bold">可用分: {{ selectedStudent.points }}</span>
-          <span class="text-purple-600 font-bold">已換禮物: {{ selectedStudent.redeemedPoints }}分</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-slate-50 p-3 rounded-2xl mb-4 space-y-2 border border-slate-100">
-      <div class="flex items-center justify-between">
-        <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-          <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>
-          <span>留小息 (Detention)</span>
-        </label>
-        <input type="checkbox" v-model="selectedStudent.stayRecess" class="w-4 h-4 text-rose-600 rounded">
-      </div>
-      <input 
-        v-if="selectedStudent.stayRecess"
-        type="text" 
-        v-model="selectedStudent.recessReason" 
-        placeholder="請輸入留小息原因 (例如: 未交數學作業)"
-        class="w-full px-3 py-1.5 text-xs bg-white border border-rose-200 rounded-xl focus:outline-none focus:border-rose-500"
-      >
-
-      <div class="pt-1">
-        <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1">
-          <i class="fa-solid fa-pen text-amber-500"></i>
-          <span>個人備註 / 紀錄</span>
-        </label>
-        <input 
-          type="text" 
-          v-model="selectedStudent.note" 
-          placeholder="輸入備註 (例如: 課堂回答特別讚)"
-          class="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500"
-        >
-      </div>
-    </div>
-
-    <div class="mb-4">
-      <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">讚賞正向表現 (+)</h4>
-      <div class="grid grid-cols-3 gap-2">
-        <button 
-          v-for="skill in positiveSkills" 
-          :key="skill.name"
-          @click="adjustPoints(selectedStudent, skill.pts, skill.name)"
-          class="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-left border border-emerald-200/60 transition active:scale-95 flex flex-col"
-        >
-          <span class="text-lg mb-1">{{ skill.icon }}</span>
-          <span class="text-xs font-bold leading-tight">{{ skill.name }}</span>
-          <span class="text-[10px] font-black text-emerald-600 mt-1">+{{ skill.pts }} 分</span>
+        <button onclick="openModal('summaryModal')" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>總結看板</span>
         </button>
       </div>
     </div>
 
-    <div>
-      <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">待改進事項 (-)</h4>
-      <div class="grid grid-cols-3 gap-2">
-        <button 
-          v-for="skill in negativeSkills" 
-          :key="skill.name"
-          @click="adjustPoints(selectedStudent, -skill.pts, skill.name)"
-          class="p-2 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-xl text-left border border-rose-200/60 transition active:scale-95 flex flex-col"
-        >
-          <span class="text-lg mb-1">{{ skill.icon }}</span>
-          <span class="text-xs font-bold leading-tight">{{ skill.name }}</span>
-          <span class="text-[10px] font-black text-rose-600 mt-1">-{{ skill.pts }} 分</span>
-        </button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- MODAL 2: BULK POINT ADJUSTMENT -->
-<div v-if="activeModal === 'bulkPoint'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 relative">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-1">團體 / 全班加扣分</h3>
-    <p class="text-xs text-slate-500 mb-4">將為 {{ bulkTargets.length }} 位同學同時進行分數調整</p>
-
-    <div class="grid grid-cols-3 gap-2 mb-4">
-      <button 
-        v-for="skill in positiveSkills" 
-        :key="skill.name"
-        @click="adjustBulkPoints(skill.pts, skill.name)"
-        class="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-left border border-emerald-200 transition flex flex-col"
-      >
-        <span class="text-xl mb-1">{{ skill.icon }}</span>
-        <span class="text-xs font-bold">{{ skill.name }}</span>
-        <span class="text-xs font-black text-emerald-600 mt-1">+{{ skill.pts }} 分</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 3: GIFT REDEMPTION -->
-<div v-if="activeModal === 'gift' && selectedStudent" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 relative max-h-[90vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-      <div class="w-12 h-12">
-        <div v-html="generateVividMonsterSvg(selectedStudent.seed)" class="w-full h-full"></div>
-      </div>
-      <div>
-        <h3 class="text-lg font-bold text-slate-800">{{ selectedStudent.name }} - 禮物換領處</h3>
-        <p class="text-xs text-slate-500">
-          目前可用分: <strong class="text-emerald-600">{{ selectedStudent.points }}</strong> 分 | 
-          已換禮物總計: <strong class="text-purple-600">{{ selectedStudent.redeemedPoints }}</strong> 分
-        </p>
-      </div>
-    </div>
-
-    <div class="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-4 text-white mb-4 shadow-md flex items-center justify-between">
-      <div>
-        <span class="text-xs font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">標準禮物規律</span>
-        <h4 class="text-base font-extrabold mt-1">🎁 30 分標準禮物速換</h4>
-        <p class="text-xs text-purple-100">自動扣除 30 可用分，並將 30 分計入已換領計分器</p>
-      </div>
-      <button 
-        @click="redeemGift(selectedStudent, { name: '30分標準禮物', cost: 30 })"
-        :disabled="selectedStudent.points < 30"
-        class="px-4 py-2 bg-amber-400 text-amber-950 hover:bg-amber-300 font-extrabold rounded-xl text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        一鍵換領 (30分)
-      </button>
-    </div>
-
-    <div class="flex-1 overflow-y-auto space-y-2 pr-1 mb-4 touch-scroll">
-      <h4 class="text-xs font-bold text-slate-400 uppercase">禮物清單選單</h4>
-      <div 
-        v-for="gift in giftCatalog" 
-        :key="gift.id"
-        class="p-3 rounded-2xl border border-slate-200 hover:border-purple-300 flex items-center justify-between transition"
-      >
-        <div class="flex items-center gap-3">
-          <span class="text-2xl">{{ gift.icon }}</span>
-          <div>
-            <h5 class="text-sm font-bold text-slate-800">{{ gift.name }}</h5>
-            <span class="text-xs text-purple-600 font-extrabold">需要 {{ gift.cost }} 分</span>
-          </div>
-        </div>
-
-        <button 
-          @click="redeemGift(selectedStudent, gift)"
-          :disabled="selectedStudent.points < gift.cost"
-          class="px-3 py-1.5 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition disabled:bg-slate-200 disabled:text-slate-400"
-        >
-          換領
-        </button>
-      </div>
-    </div>
-
-    <button 
-      @click="activeModal = 'addGift'" 
-      class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-dashed border-slate-300 transition"
-    >
-      + 新增自訂禮物項目
-    </button>
-
-  </div>
-</div>
-
-<!-- MODAL 4: RANDOM PICKER -->
-<div v-if="activeModal === 'random'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center relative">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-4">🎲 隨機抽籤選學生</h3>
-
-    <div class="w-36 h-36 mx-auto my-4 relative">
-      <div v-if="randomPickedStudent" v-html="generateVividMonsterSvg(randomPickedStudent.seed)" class="w-full h-full"></div>
-      <div v-else class="w-full h-full flex items-center justify-center text-5xl text-slate-300">
-        ❓
-      </div>
-    </div>
-
-    <div class="h-12 flex items-center justify-center mb-4">
-      <h2 v-if="randomPickedStudent" class="text-2xl font-black text-emerald-600">
-        #{{ randomPickedStudent.num }} {{ randomPickedStudent.name }}
-      </h2>
-      <span v-else class="text-slate-400 font-bold text-sm">點擊下方按鈕開始抽籤...</span>
-    </div>
-
-    <button 
-      @click="startRandomPick" 
-      :disabled="isPicking"
-      class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-2xl shadow-lg transition active:scale-95 disabled:opacity-50"
-    >
-      {{ isPicking ? '抽籤中...' : '開始抽籤!' }}
-    </button>
-  </div>
-</div>
-
-<!-- MODAL 5: TIMER -->
-<div v-if="activeModal === 'timer'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center relative">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-2">⏱️ 課堂計時器</h3>
-
-    <div class="text-6xl font-black text-slate-800 my-6 font-mono tracking-wider">
-      {{ formattedTime }}
-    </div>
-
-    <div class="flex justify-center gap-2 mb-6">
-      <button @click="setTimerPreset(60)" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold">1分鐘</button>
-      <button @click="setTimerPreset(180)" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold">3分鐘</button>
-      <button @click="setTimerPreset(300)" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold">5分鐘</button>
-    </div>
-
-    <div class="flex gap-3">
-      <button @click="toggleTimer" class="flex-1 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl transition">
-        {{ isTimerRunning ? '暫停' : '開始' }}
-      </button>
-      <button @click="resetTimer" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
-        重置
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 6: RANDOM GROUPING -->
-<div v-if="activeModal === 'group'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 relative max-h-[85vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-1">👥 隨機小組分組器</h3>
-    <p class="text-xs text-slate-500 mb-4">自動將全班 41 位學生隨機分配成小組</p>
-
-    <div class="flex items-center gap-4 mb-4">
-      <label class="text-xs font-bold text-slate-700">每組人數:</label>
-      <select v-model="groupSize" class="px-3 py-1.5 bg-slate-100 border-none rounded-xl text-xs font-bold">
-        <option :value="2">2 人一組</option>
-        <option :value="4">4 人一組</option>
-        <option :value="5">5 人一組</option>
-        <option :value="6">6 人一組</option>
-      </select>
-      <button @click="generateGroups" class="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-xl shadow hover:bg-violet-700 transition">
-        重新分組
-      </button>
-    </div>
-
-    <div class="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3 pr-1 touch-scroll">
-      <div v-for="(grp, idx) in generatedGroups" :key="idx" class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
-        <h4 class="text-xs font-extrabold text-violet-700 mb-2">第 {{ idx + 1 }} 組 ({{ grp.length }} 人)</h4>
-        <div class="flex flex-wrap gap-1.5">
-          <span v-for="st in grp" :key="st.id" class="text-xs font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-lg text-slate-700">
-            #{{ st.num }} {{ st.name }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 7: ATTENDANCE -->
-<div v-if="activeModal === 'attendance'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 relative max-h-[85vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-1">📋 考勤點名簿</h3>
-    <p class="text-xs text-slate-500 mb-4">點擊切換出席狀態 (出席 / 缺席 / 遲到 / 早退)</p>
-
-    <div class="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2 pr-1 mb-4 touch-scroll">
-      <div 
-        v-for="st in students" 
-        :key="st.id"
-        @click="toggleStudentAttendance(st)"
-        class="p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition"
-        :class="{
-          'bg-emerald-50 border-emerald-200 text-emerald-800': st.attendance === 'present',
-          'bg-rose-50 border-rose-200 text-rose-800': st.attendance === 'absent',
-          'bg-amber-50 border-amber-200 text-amber-800': st.attendance === 'late',
-          'bg-blue-50 border-blue-200 text-blue-800': st.attendance === 'leave'
-        }"
-      >
-        <span class="text-xs font-bold">#{{ st.num }} {{ st.name }}</span>
-        <span class="text-[10px] font-black px-1.5 py-0.5 rounded bg-white/80">
-          {{ getAttendanceLabel(st.attendance) }}
+    <!-- Multi-Select Action Banner (Hidden by default) -->
+    <div id="multiselect-bar" class="bg-emerald-900 text-white p-3 sm:p-4 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3 hidden border border-emerald-700">
+      <div class="flex items-center gap-3">
+        <span class="bg-emerald-700 text-emerald-100 px-3 py-1 rounded-xl text-xs sm:text-sm font-bold">
+          已選取 <span id="selected-count" class="text-amber-300 font-extrabold">0</span> 位學生
         </span>
+        <button onclick="selectAllStudents(true)" class="text-xs text-emerald-200 underline hover:text-white">全選</button>
+        <button onclick="selectAllStudents(false)" class="text-xs text-emerald-200 underline hover:text-white">取消全選</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 8: REDEEMED LEADERBOARD -->
-<div v-if="activeModal === 'leaderboard'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 relative max-h-[85vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-1">🏆 禮物換領計分排行榜</h3>
-    <p class="text-xs text-slate-500 mb-4">依照累積已換領禮物分數進行排名</p>
-
-    <div class="flex-1 overflow-y-auto space-y-2 pr-1 touch-scroll">
-      <div 
-        v-for="(st, index) in leaderboardStudents" 
-        :key="st.id"
-        class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between"
-      >
-        <div class="flex items-center gap-3">
-          <span 
-            class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
-            :class="{
-              'bg-amber-400 text-amber-950': index === 0,
-              'bg-slate-300 text-slate-800': index === 1,
-              'bg-amber-700 text-white': index === 2,
-              'bg-slate-200 text-slate-600': index > 2
-            }"
-          >
-            {{ index + 1 }}
-          </span>
-          <div class="w-10 h-10">
-            <div v-html="generateVividMonsterSvg(st.seed)" class="w-full h-full"></div>
-          </div>
-          <div>
-            <h4 class="text-sm font-bold text-slate-800">#{{ st.num }} {{ st.name }}</h4>
-            <p class="text-[11px] text-slate-500">已換領 {{ st.redeemedCount }} 份禮物</p>
-          </div>
-        </div>
-
-        <div class="text-right">
-          <span class="text-base font-black text-purple-600">{{ st.redeemedPoints }} 分</span>
-          <span class="block text-[10px] text-slate-400">可用餘額: {{ st.points }}分</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 9: RECESS STAY LIST -->
-<div v-if="activeModal === 'recess'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 relative max-h-[85vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <h3 class="text-lg font-bold text-slate-800 mb-1">🚨 留小息總名單</h3>
-    <p class="text-xs text-slate-500 mb-4">目前需要留小息的同學與原因記錄</p>
-
-    <div v-if="recessStudentsList.length === 0" class="py-12 text-center text-slate-400 text-xs font-bold">
-      🎉 太棒了！今天沒有學生需要留小息！
-    </div>
-
-    <div v-else class="flex-1 overflow-y-auto space-y-2 pr-1 mb-4 touch-scroll">
-      <div v-for="st in recessStudentsList" :key="st.id" class="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10">
-            <div v-html="generateVividMonsterSvg(st.seed)" class="w-full h-full"></div>
-          </div>
-          <div>
-            <h4 class="text-sm font-bold text-slate-800">#{{ st.num }} {{ st.name }}</h4>
-            <p class="text-xs text-rose-700 font-bold">原因: {{ st.recessReason || '課堂留守/補交作業' }}</p>
-          </div>
-        </div>
-        <button @click="st.stayRecess = false" class="px-3 py-1 bg-white border border-rose-300 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100">
-          解除留小息
+      <div class="flex items-center gap-2">
+        <button onclick="openBulkPointModal(1)" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs sm:text-sm font-bold rounded-xl shadow">
+          <i class="fa-solid fa-plus"></i> 集體加分數
+        </button>
+        <button onclick="openBulkPointModal(-1)" class="px-3 py-1.5 bg-rose-500 hover:bg-rose-400 text-white text-xs sm:text-sm font-bold rounded-xl shadow">
+          <i class="fa-solid fa-minus"></i> 集體扣分數
+        </button>
+        <button onclick="toggleMultiSelectMode()" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-xl">
+          退出多選
         </button>
       </div>
     </div>
 
-    <button 
-      v-if="recessStudentsList.length > 0"
-      @click="clearAllRecess"
-      class="w-full py-2.5 bg-rose-600 text-white font-bold text-xs rounded-xl hover:bg-rose-700 transition"
-    >
-      一鍵清空所有留小息標記
-    </button>
-  </div>
-</div>
+    <!-- Student Cards Grid Container (41 Students) -->
+    <div id="students-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+      <!-- Generated dynamically by JavaScript -->
+    </div>
+  </main>
 
-<!-- MODAL 10: SUMMARY DASHBOARD -->
-<div v-if="activeModal === 'summary'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-4xl w-full p-6 relative max-h-[90vh] flex flex-col">
-    <button @click="closeModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center print:hidden">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
-      <div>
-        <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-chart-pie text-emerald-500"></i>
-          <span>2B 班級分數總結總覽</span>
-        </h3>
-        <p class="text-xs text-slate-500">全班 41 位學生分數統計與禮物換領狀況</p>
-      </div>
-
-      <div class="flex items-center gap-2 print:hidden">
-        <span class="text-xs font-bold text-slate-500">排序:</span>
-        <select v-model="summarySortKey" class="px-3 py-1.5 bg-slate-100 border-none rounded-xl text-xs font-bold text-slate-700 focus:outline-none">
-          <option value="num">按座號排序</option>
-          <option value="points">按可用分排序</option>
-          <option value="total">按累積總得分排序</option>
-        </select>
-        <button @click="printSummary" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1">
-          <i class="fa-solid fa-print"></i>
-          <span>列出總表</span>
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 mt-6">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div>2B 班級專用版 ‧ 41 位學生完整名單已載入</div>
+      <div class="flex items-center gap-4">
+        <button onclick="exportBackupJSON()" class="hover:text-emerald-600 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-download"></i> 匯出備份
+        </button>
+        <button onclick="confirmResetAllData()" class="hover:text-rose-600 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-rotate-left"></i> 重置全班數據
         </button>
       </div>
     </div>
+  </footer>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-      <div class="p-3 bg-emerald-50 border border-emerald-200/60 rounded-2xl">
-        <span class="text-[11px] font-bold text-emerald-700">可用總分</span>
-        <div class="text-xl font-black text-emerald-600 mt-0.5">{{ totalClassPoints }} 分</div>
-      </div>
-      <div class="p-3 bg-indigo-50 border border-indigo-200/60 rounded-2xl">
-        <span class="text-[11px] font-bold text-indigo-700">累積總得分</span>
-        <div class="text-xl font-black text-indigo-600 mt-0.5">{{ totalLifetimePoints }} 分</div>
-      </div>
-      <div class="p-3 bg-purple-50 border border-purple-200/60 rounded-2xl">
-        <span class="text-[11px] font-bold text-purple-700">已換禮物總數</span>
-        <div class="text-xl font-black text-purple-600 mt-0.5">{{ totalRedeemedCount }} 份</div>
-      </div>
-      <div class="p-3 bg-amber-50 border border-amber-200/60 rounded-2xl">
-        <span class="text-[11px] font-bold text-amber-700">生均平均分</span>
-        <div class="text-xl font-black text-amber-600 mt-0.5">{{ averagePointsPerStudent }} 分/人</div>
-      </div>
-    </div>
+  <!-- ==================== MODAL DIALOGS ==================== -->
 
-    <div class="flex-1 overflow-y-auto rounded-2xl border border-slate-200 touch-scroll">
-      <table class="w-full text-left text-xs border-collapse">
-        <thead class="bg-slate-100 sticky top-0 text-slate-600 font-extrabold uppercase text-[11px]">
-          <tr>
-            <th class="p-3 w-14 text-center">座號</th>
-            <th class="p-3">學生</th>
-            <th class="p-3 text-center">可用分</th>
-            <th class="p-3 text-center">已換禮物分</th>
-            <th class="p-3 text-center">累積總得分</th>
-            <th class="p-3 text-center">可換禮物狀態</th>
-            <th class="p-3">註記</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
-          <tr v-for="st in summarySortedStudents" :key="st.id" class="hover:bg-slate-50 transition">
-            <td class="p-3 text-center font-bold text-slate-500">#{{ st.num }}</td>
-            <td class="p-3">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7">
-                  <div v-html="generateVividMonsterSvg(st.seed)" class="w-full h-full"></div>
-                </div>
-                <span class="font-bold text-slate-800">{{ st.name }}</span>
-              </div>
-            </td>
-            <td class="p-3 text-center font-black text-emerald-600">{{ st.points }} 分</td>
-            <td class="p-3 text-center text-purple-600 font-bold">{{ st.redeemedPoints }}分 ({{ st.redeemedCount }}份)</td>
-            <td class="p-3 text-center font-black text-indigo-600">{{ st.points + st.redeemedPoints }} 分</td>
-            <td class="p-3 text-center">
-              <span v-if="st.points >= 30" class="px-2 py-0.5 bg-amber-400 text-amber-950 text-[10px] font-black rounded-full">🎁 可換 {{ Math.floor(st.points / 30) }} 份</span>
-              <span v-else class="text-[11px] text-slate-400">差 {{ 30 - (st.points % 30) }} 分</span>
-            </td>
-            <td class="p-3 text-slate-400">{{ st.note || '-' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 11: ADD CUSTOM GIFT -->
-<div v-if="activeModal === 'addGift'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 relative">
-    <h3 class="text-base font-bold text-slate-800 mb-3">新增自訂禮物</h3>
-    <input type="text" v-model="newGiftForm.name" placeholder="禮物名稱" class="w-full px-3 py-2 text-xs bg-slate-100 border-none rounded-xl mb-2 focus:outline-none">
-    <input type="number" v-model.number="newGiftForm.cost" placeholder="所需分數" class="w-full px-3 py-2 text-xs bg-slate-100 border-none rounded-xl mb-4 focus:outline-none">
-    <div class="flex gap-2">
-      <button @click="activeModal = 'gift'" class="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">取消</button>
-      <button @click="saveNewGift" class="flex-1 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold">保存禮物</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 12: RESET CONFIRMATION -->
-<div v-if="activeModal === 'resetConfirm'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center relative">
-    <h3 class="text-base font-bold text-slate-800 mb-2">確定重置班級系統？</h3>
-    <p class="text-xs text-slate-500 mb-4">將歸零所有可用分數與已換領禮物分數，此操作無法撤銷！</p>
-    <div class="flex gap-2">
-      <button @click="closeModal" class="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">取消</button>
-      <button @click="resetAllScores" class="flex-1 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">確定重置</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL 13: AI WHITEBOARD SCANNER (GEMINI 3.8 FLASH PRIORITY) -->
-<div v-if="activeModal === 'aiScanner'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative max-h-[92vh] flex flex-col overflow-hidden">
-    
-    <!-- Fixed Header -->
-    <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-white z-10 flex-shrink-0">
-      <div>
-        <h3 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-camera text-rose-500"></i>
-          <span>📸 拍照 AI 智能計分 (Gemini 3.8 Flash)</span>
-        </h3>
-        <p class="text-[11px] sm:text-xs text-slate-500">拍攝手寫白板或紙張，自動提取座號分數！</p>
-      </div>
-      <button @click="closeModal" class="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center flex-shrink-0 ml-2">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-
-    <!-- Scrollable Body for Mobile Safari -->
-    <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 touch-scroll">
+  <!-- 1. AI Whiteboard Scanner Modal (Gemini 3.8 Flash) -->
+  <div id="aiModal" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
       
-      <!-- API Key Input -->
-      <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200/80">
-        <div class="flex items-center justify-between mb-1">
-          <label class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-            <i class="fa-solid fa-key text-amber-600"></i>
-            <span>Google Gemini API Key (Google AI Studio 專用)</span>
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-rose-600 to-pink-600 text-white px-5 py-4 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-camera-retro text-xl"></i>
+          <h3 class="font-extrabold text-lg">拍照 AI 智能計分 (Gemini 3.8 Flash 優先版)</h3>
+        </div>
+        <button onclick="closeModal('aiModal')" class="text-white/80 hover:text-white p-1 rounded-full text-xl leading-none">&times;</button>
+      </div>
+
+      <!-- Modal Body (Scrollable for iOS Safari) -->
+      <div class="p-4 sm:p-6 overflow-y-auto touch-scroll space-y-4 flex-1">
+
+        <!-- API Key Input Box -->
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold flex items-center gap-1.5 text-amber-800">
+              <i class="fa-solid fa-key"></i> Google Gemini API Key (Google AI Studio 專用)
+            </span>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-emerald-700 underline font-semibold hover:text-emerald-800">
+              免費獲取 Key ↗
+            </a>
+          </div>
+          <input type="password" id="userApiKey" placeholder="貼上您的 Gemini API Key (以 AIza 開頭)..." 
+                 onchange="saveApiKey(this.value)"
+                 class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+          <p class="text-[11px] text-amber-700/90 leading-relaxed">
+            💡 系統優先調用 <strong class="text-amber-900">gemini-3.8-flash</strong> 端點 (自動備援至 3.6-flash)。Key 僅儲存於您的瀏覽器中。
+          </p>
+        </div>
+
+        <!-- Camera & Photo Select Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="cursor-pointer bg-gradient-to-br from-rose-50 to-pink-50 hover:from-rose-100 hover:to-pink-100 border-2 border-dashed border-rose-300 rounded-2xl p-4 text-center transition-all flex flex-col items-center justify-center gap-2 group">
+            <i class="fa-solid fa-camera text-3xl text-rose-500 group-hover:scale-110 transition-transform"></i>
+            <div>
+              <div class="font-extrabold text-sm text-slate-800">即時拍攝照片</div>
+              <div class="text-xs text-slate-500">開啟 iPhone / 裝置鏡頭</div>
+            </div>
+            <input type="file" accept="image/*" capture="environment" onchange="handleImageSelected(event)" class="hidden">
           </label>
-          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[10px] text-amber-700 underline font-bold hover:text-amber-900">
-            免費獲取 Key ↗
-          </a>
+
+          <label class="cursor-pointer bg-gradient-to-br from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 border-2 border-dashed border-indigo-300 rounded-2xl p-4 text-center transition-all flex flex-col items-center justify-center gap-2 group">
+            <i class="fa-solid fa-images text-3xl text-indigo-500 group-hover:scale-110 transition-transform"></i>
+            <div>
+              <div class="font-extrabold text-sm text-slate-800">從相片庫 / 檔案選取</div>
+              <div class="text-xs text-slate-500">選擇手機相簿現有照片</div>
+            </div>
+            <input type="file" accept="image/*" onchange="handleImageSelected(event)" class="hidden">
+          </label>
         </div>
-        <input 
-          type="password" 
-          v-model="userApiKey" 
-          @input="saveApiKey"
-          @change="saveApiKey"
-          placeholder="請在此貼上您的 Gemini API Key (例如 AQ... 或 AIza...)" 
-          class="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
-        >
-        <p class="text-[10px] text-amber-600 mt-1">💡 優先調用 <b>gemini-3.8-flash</b> 端點。Key 僅儲存於本機瀏覽器。</p>
-      </div>
 
-      <!-- Camera vs Photo Upload Buttons -->
-      <div class="grid grid-cols-2 gap-2 sm:gap-3" :class="aiImagePreview ? 'opacity-80 scale-98' : ''">
-        <label class="cursor-pointer bg-gradient-to-br from-rose-50 to-pink-50 hover:from-rose-100 hover:to-pink-100 border-2 border-rose-200/90 rounded-2xl p-3 sm:p-4 text-center transition flex flex-col items-center justify-center gap-1.5 group active:scale-95 shadow-sm">
-          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-rose-500 text-white flex items-center justify-center text-lg sm:text-xl group-hover:scale-110 transition-transform shadow">
-            <i class="fa-solid fa-camera"></i>
-          </div>
-          <div>
-            <span class="text-xs font-extrabold text-rose-900 block">📸 即時拍攝</span>
-            <span class="text-[10px] font-bold text-rose-600 hidden sm:block">開啟相機鏡頭</span>
-          </div>
-          <input type="file" accept="image/*" capture="environment" @change="handleImageUpload" class="hidden">
-        </label>
-
-        <label class="cursor-pointer bg-gradient-to-br from-indigo-50 to-sky-50 hover:from-indigo-100 hover:to-sky-100 border-2 border-indigo-200/90 rounded-2xl p-3 sm:p-4 text-center transition flex flex-col items-center justify-center gap-1.5 group active:scale-95 shadow-sm">
-          <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg sm:text-xl group-hover:scale-110 transition-transform shadow">
-            <i class="fa-solid fa-images"></i>
-          </div>
-          <div>
-            <span class="text-xs font-extrabold text-indigo-900 block">🖼️ 相片庫選取</span>
-            <span class="text-[10px] font-bold text-indigo-600 hidden sm:block">選取手機相簿</span>
-          </div>
-          <input type="file" accept="image/*" @change="handleImageUpload" class="hidden">
-        </label>
-      </div>
-
-      <!-- Image Preview -->
-      <div v-if="aiImagePreview" class="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center bg-slate-50 p-3 rounded-2xl border border-slate-200">
-        <img :src="aiImagePreview" class="w-32 h-32 sm:w-36 sm:h-36 object-cover rounded-xl border border-slate-300 shadow-sm flex-shrink-0">
-        <div class="flex-1 space-y-2 text-center sm:text-left w-full">
-          <h4 class="text-xs font-bold text-slate-700">照片已成功載入</h4>
-          <p class="text-[11px] text-slate-500">點擊下方按鈕進行 Gemini 3.8 AI 影像分析</p>
-          <button 
-            @click="processWhiteboardImage" 
-            :disabled="isScanning"
-            class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs font-extrabold rounded-xl shadow hover:from-rose-600 hover:to-pink-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <i class="fa-solid" :class="isScanning ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-            <span>{{ isScanning ? 'Gemini 3.8 分析中...' : '🪄 開始 Gemini 3.8 辨識加分' }}</span>
+        <!-- Image Preview Box -->
+        <div id="ai-preview-box" class="hidden border border-slate-200 rounded-2xl p-3 bg-slate-50 text-center space-y-3">
+          <img id="ai-preview-img" src="" alt="Whiteboard Preview" class="max-h-56 mx-auto rounded-xl object-contain shadow-sm border border-slate-200">
+          <button id="btn-run-ai" onclick="processWhiteboardImage()" class="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm rounded-xl shadow transition-all flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>開始 Gemini 3.8 辨識加分</span>
           </button>
         </div>
-      </div>
 
-      <!-- AI Error Banner -->
-      <div v-if="aiErrorMessage" class="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 font-medium">
-        ⚠️ {{ aiErrorMessage }}
-      </div>
-
-      <!-- Recognized Results -->
-      <div v-if="scanResults.length > 0" class="space-y-2 border-t border-slate-200 pt-3">
-        <div class="flex items-center justify-between">
-          <h4 class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-            <i class="fa-solid fa-circle-check text-emerald-500"></i>
-            <span>成功辨識項目 (共 {{ scanResults.length }} 筆)：</span>
-          </h4>
-          <button @click="scanResults = []" class="text-[10px] text-slate-400 hover:text-slate-600">清空</button>
+        <!-- Scanning Loader -->
+        <div id="ai-loading" class="hidden py-8 text-center space-y-3">
+          <div class="inline-block animate-spin text-rose-500 text-4xl">
+            <i class="fa-solid fa-circle-notch"></i>
+          </div>
+          <div class="font-extrabold text-slate-700 text-sm">Gemini 3.8 AI 正在辨識黑板文字與座號...</div>
+          <p class="text-xs text-slate-400">系統會自動跳過模糊數字並歸類至待查清單</p>
         </div>
 
-        <div class="space-y-1.5">
-          <div v-for="(item, idx) in scanResults" :key="idx" class="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs shadow-sm">
-            <div class="flex items-center gap-2">
-              <span class="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">#{{ item.num }}</span>
-              <span class="font-bold text-slate-800">{{ item.name }}</span>
+        <!-- AI Analysis Results & Recognition Output -->
+        <div id="ai-result-section" class="hidden space-y-4 pt-2">
+          <div class="flex items-center justify-between border-b pb-2">
+            <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-check-double text-emerald-500"></i> AI 辨識結果確認
+            </h4>
+            <span id="ai-recognized-count" class="text-xs font-bold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
+              成功辨識 0 個清晰座號
+            </span>
+          </div>
+
+          <!-- List of Clearly Recognized Seat Numbers -->
+          <div id="ai-seats-container" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <!-- Dynamically populated -->
+          </div>
+
+          <!-- Skipped / Unclear Items Warning Box -->
+          <div id="ai-unclear-box" class="hidden bg-orange-50 border border-orange-200 rounded-2xl p-3.5 space-y-2">
+            <div class="flex items-center gap-2 text-xs font-extrabold text-orange-800">
+              <i class="fa-solid fa-triangle-exclamation text-orange-500"></i>
+              <span>不清晰 / 跳過未自動處置項 (需人工確認):</span>
+            </div>
+            <ul id="ai-unclear-list" class="text-xs text-orange-900 list-disc list-inside space-y-1">
+              <!-- Dynamically populated -->
+            </ul>
+          </div>
+
+          <!-- Inline Manual Supplement Tool Bar -->
+          <div class="bg-slate-100 border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-plus-circle text-emerald-600"></i>
+              <span>手動補填 / 新增座號分數:</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-slate-400 text-[11px]">加分:</span>
-              <input type="number" v-model.number="item.points" class="w-14 px-2 py-1 bg-slate-100 rounded-lg text-center font-black border border-slate-200 focus:outline-none focus:border-emerald-500">
-              <button @click="scanResults.splice(idx, 1)" class="text-rose-400 hover:text-rose-600 p-1">
-                <i class="fa-solid fa-trash-can"></i>
+              <select id="manualSeatSelect" class="bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-bold focus:outline-none">
+                <!-- 1 to 41 seats generated by JS -->
+              </select>
+              <input type="number" id="manualPtsInput" value="1" min="1" max="10" class="w-14 bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-bold text-center focus:outline-none">
+              <button onclick="addManualSeatItem()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-sm">
+                加入清單
               </button>
             </div>
           </div>
         </div>
+
       </div>
 
-      <!-- Unclear Handwriting Items Warning -->
-      <div v-if="unclearItems.length > 0" class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-1.5">
-        <div class="flex items-center justify-between text-amber-900 font-extrabold">
-          <span class="flex items-center gap-1.5">
-            <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
-            <span>⚠️ 跳過模糊筆跡 (請手動對照白板):</span>
-          </span>
-          <button @click="unclearItems = []" class="text-[10px] text-amber-600 hover:text-amber-800">隱藏</button>
-        </div>
-        <ul class="list-disc list-inside text-[11px] text-amber-800 space-y-1 pl-1">
-          <li v-for="(note, nIdx) in unclearItems" :key="nIdx">{{ note }}</li>
-        </ul>
-      </div>
-
-      <!-- Manual Supplement Input -->
-      <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-        <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1">
-          <i class="fa-solid fa-pen-to-square text-indigo-500"></i>
-          <span>➕ 手動補填 / 新增座號分數</span>
-        </h4>
-        <div class="flex gap-2">
-          <select v-model="manualAddSeat" class="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 font-bold">
-            <option value="">選擇學生座號 / 姓名...</option>
-            <option v-for="st in students" :key="st.id" :value="st.num">
-              #{{ st.num }} {{ st.name }}
-            </option>
-          </select>
-          <input type="number" v-model.number="manualAddPoints" placeholder="分" class="w-16 px-2 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-center">
-          <button @click="addManualScanItem" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">
-            加入
-          </button>
-        </div>
+      <!-- Modal Sticky Footer Button (Optimized for iPhone Home Bar) -->
+      <div class="p-4 bg-slate-50 border-t border-slate-200 shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <button id="btn-apply-ai" onclick="applyAiScanResults()" disabled class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm sm:text-base rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>確認無誤，一鍵更新全班分數！</span>
+        </button>
       </div>
 
     </div>
+  </div>
 
-    <!-- Sticky Footer -->
-    <div v-if="scanResults.length > 0" class="p-4 border-t border-slate-200 bg-white shadow-lg flex-shrink-0 z-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-      <button 
-        @click="applyScanResults"
-        class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition active:scale-98 flex items-center justify-center gap-2"
-      >
-        <i class="fa-solid fa-circle-check"></i>
-        <span>確認無誤，一鍵更新全班分數！</span>
+  <!-- 2. Single Student Point Adjust Modal -->
+  <div id="pointModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+      <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div id="modal-student-avatar" class="w-12 h-12 rounded-2xl bg-white/20 p-1"></div>
+          <div>
+            <h3 id="modal-student-title" class="font-extrabold text-lg">#01 陳柏立</h3>
+            <div class="text-xs text-emerald-100">目前可用分數: <span id="modal-student-pts" class="font-bold text-amber-200 text-sm">0</span> 分</div>
+          </div>
+        </div>
+        <button onclick="closeModal('pointModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto touch-scroll">
+        <!-- Direct Quick Score Buttons -->
+        <div>
+          <label class="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2">快速調整</label>
+          <div class="grid grid-cols-4 gap-2">
+            <button onclick="quickAdjustScore(1)" class="py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-black text-sm rounded-xl border border-emerald-200">+1 分</button>
+            <button onclick="quickAdjustScore(2)" class="py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-black text-sm rounded-xl border border-emerald-300">+2 分</button>
+            <button onclick="quickAdjustScore(5)" class="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm rounded-xl border border-emerald-600 shadow">+5 分</button>
+            <button onclick="quickAdjustScore(-1)" class="py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-sm rounded-xl border border-rose-200">-1 分</button>
+          </div>
+        </div>
+
+        <!-- Preset Positive Behaviors -->
+        <div>
+          <label class="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2">👍 良好表現 (+1至+2分)</label>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <button onclick="quickAdjustScore(1, '積極回答')" class="p-2.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl text-left font-bold text-slate-700 flex items-center justify-between">
+              <span>積極回答問題</span> <span class="text-emerald-600 font-black">+1</span>
+            </button>
+            <button onclick="quickAdjustScore(1, '專心聽講')" class="p-2.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl text-left font-bold text-slate-700 flex items-center justify-between">
+              <span>上課專心聽講</span> <span class="text-emerald-600 font-black">+1</span>
+            </button>
+            <button onclick="quickAdjustScore(2, '樂於助人')" class="p-2.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl text-left font-bold text-slate-700 flex items-center justify-between">
+              <span>主動協助同學</span> <span class="text-emerald-600 font-black">+2</span>
+            </button>
+            <button onclick="quickAdjustScore(2, '作業優秀')" class="p-2.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl text-left font-bold text-slate-700 flex items-center justify-between">
+              <span>功課寫作優秀</span> <span class="text-emerald-600 font-black">+2</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Student Note Section -->
+        <div>
+          <label class="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1">📝 個人備註 / 紀錄</label>
+          <input type="text" id="modal-student-note-input" placeholder="輸入備註 (如: 帶課本、欠交工作紙)..." 
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+        <button onclick="saveStudentNote()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow">
+          儲存備註
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Gift Redemption Modal -->
+  <div id="giftModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+      <div class="bg-gradient-to-r from-pink-500 to-rose-500 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i class="fa-solid fa-gift text-3xl"></i>
+          <div>
+            <h3 id="gift-modal-student-title" class="font-extrabold text-lg">兌換禮物</h3>
+            <p class="text-xs text-pink-100">每 30 分即可兌換 1 份精美禮物</p>
+          </div>
+        </div>
+        <button onclick="closeModal('giftModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="bg-pink-50 border border-pink-200 rounded-2xl p-4 text-center space-y-1">
+          <div class="text-xs text-pink-700 font-bold">目前可用分數</div>
+          <div id="gift-modal-pts" class="text-3xl font-black text-pink-600">0</div>
+          <div id="gift-modal-eligible" class="text-xs font-extrabold text-emerald-600 pt-1">
+            可兌換 <span id="gift-modal-count" class="text-base font-black">0</span> 份禮物
+          </div>
+        </div>
+
+        <button id="btn-redeem-action" onclick="executeRedeemGift()" class="w-full py-3 bg-pink-500 hover:bg-pink-600 text-white font-black text-base rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-gift"></i>
+          <span>扣除 30 分，立即兌換 1 份禮物！</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Summary & Rankings Modal -->
+  <div id="summaryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-100">
+      <div class="bg-slate-800 text-white px-5 py-4 flex items-center justify-between shrink-0">
+        <h3 class="font-extrabold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-chart-pie text-amber-400"></i> 2B 班級成績總結看板
+        </h3>
+        <button onclick="closeModal('summaryModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto touch-scroll flex-1 space-y-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+            <div class="text-xs text-slate-500 font-bold">全班學生人數</div>
+            <div class="text-xl font-black text-slate-800">41 人</div>
+          </div>
+          <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200">
+            <div class="text-xs text-amber-700 font-bold">全班累積總分</div>
+            <div id="summary-total-pts" class="text-xl font-black text-amber-600">0</div>
+          </div>
+          <div class="bg-pink-50 p-3 rounded-2xl border border-pink-200">
+            <div class="text-xs text-pink-700 font-bold">已兌換總禮物數</div>
+            <div id="summary-total-gifts" class="text-xl font-black text-pink-600">0 份</div>
+          </div>
+          <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+            <div class="text-xs text-emerald-700 font-bold">人均平均得分</div>
+            <div id="summary-avg-pts" class="text-xl font-black text-emerald-600">0.0</div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-extrabold text-sm text-slate-700 mb-2 flex items-center justify-between">
+            <span>🏆 分數排行榜 (Top 10)</span>
+          </h4>
+          <div id="leaderboard-list" class="space-y-1.5">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Recess / Detention List Modal -->
+  <div id="recessModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+      <div class="bg-rose-600 text-white p-5 flex items-center justify-between">
+        <h3 class="font-extrabold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-bell"></i> 留小息名單紀錄
+        </h3>
+        <button onclick="closeModal('recessModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto touch-scroll">
+        <div id="recess-list-container" class="space-y-2">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+        <button onclick="clearAllRecess()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl">
+          清空全班小息名單
+        </button>
+        <button onclick="closeModal('recessModal')" class="px-5 py-2 bg-rose-600 text-white text-xs font-bold rounded-xl shadow">
+          完成
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Random Lottery Picker Modal -->
+  <div id="lotteryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center space-y-5 border border-slate-100">
+      <div class="flex justify-between items-center">
+        <h3 class="font-extrabold text-lg text-slate-800">🎲 隨機學生抽籤</h3>
+        <button onclick="closeModal('lotteryModal')" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
+
+      <div class="py-6 bg-gradient-to-b from-amber-50 to-orange-50 rounded-3xl border border-amber-200 flex flex-col items-center justify-center gap-3">
+        <div id="lottery-avatar" class="w-24 h-24 bg-white rounded-full p-2 shadow-md"></div>
+        <div id="lottery-name" class="text-2xl font-black text-slate-800">準備抽籤...</div>
+      </div>
+
+      <button onclick="startLotteryDraw()" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-base rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2">
+        <i class="fa-solid fa-dice text-xl"></i>
+        <span>開始隨機抽取一位學生！</span>
       </button>
     </div>
-
   </div>
-</div>
 
-<!-- TOAST NOTIFICATION -->
-<transition enter-active-class="transition duration-300 ease-out" enter-from-class="transform translate-y-4 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition duration-200 ease-in" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-4 opacity-0">
-  <div v-if="toastMessage" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-extrabold text-white bg-slate-800 border border-slate-700 flex items-center gap-2">
-    <span>✨ {{ toastMessage }}</span>
+  <!-- Toast Notification Message Box -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+    <span id="toast-text" class="text-xs sm:text-sm font-bold">通知訊息</span>
   </div>
-</transition>
+
+  <!-- ==================== JAVASCRIPT ENGINE ==================== -->
+  <script>
+    // 1. Initial 41-Student Class 2B Roster Data (Updated with ClassDojo Scores)
+    const INITIAL_STUDENTS = [
+      { num: 1, name: "陳柏立", points: 33, redeemed: 0, attendance: "present", note: "" },
+      { num: 2, name: "陳弘量", points: 32, redeemed: 0, attendance: "present", note: "" },
+      { num: 3, name: "陳弈之", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 4, name: "鄭芊楠", points: 33, redeemed: 0, attendance: "present", note: "" },
+      { num: 5, name: "張可宜", points: 36, redeemed: 0, attendance: "present", note: "" },
+      { num: 6, name: "張素文", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 7, name: "周景謙", points: 47, redeemed: 0, attendance: "present", note: "" },
+      { num: 8, name: "周葆妍", points: 37, redeemed: 0, attendance: "present", note: "" },
+      { num: 9, name: "徐歌", points: 34, redeemed: 0, attendance: "present", note: "" },
+      { num: 10, name: "鍾允陶", points: 48, redeemed: 0, attendance: "present", note: "" },
+      { num: 11, name: "鍾曜駿", points: 32, redeemed: 0, attendance: "present", note: "" },
+      { num: 12, name: "方睿晴", points: 36, redeemed: 0, attendance: "present", note: "" },
+      { num: 13, name: "許梓晙", points: 40, redeemed: 0, attendance: "present", note: "" },
+      { num: 14, name: "葉御琳", points: 40, redeemed: 0, attendance: "present", note: "" },
+      { num: 15, name: "郭靖希", points: 37, redeemed: 0, attendance: "present", note: "" },
+      { num: 16, name: "林寶", points: 33, redeemed: 0, attendance: "present", note: "" },
+      { num: 17, name: "林宥孜", points: 46, redeemed: 0, attendance: "present", note: "" },
+      { num: 18, name: "林奕謙", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 19, name: "劉綽妍", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 20, name: "李靖祈", points: 34, redeemed: 0, attendance: "present", note: "" },
+      { num: 21, name: "梁晞雅", points: 31, redeemed: 0, attendance: "present", note: "" },
+      { num: 22, name: "梁凱博", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 23, name: "梁珼怡", points: 37, redeemed: 0, attendance: "present", note: "" },
+      { num: 24, name: "梁禮昭", points: 31, redeemed: 0, attendance: "present", note: "" },
+      { num: 25, name: "梁祐喬", points: 34, redeemed: 0, attendance: "present", note: "" },
+      { num: 26, name: "李宗睿", points: 34, redeemed: 0, attendance: "present", note: "" },
+      { num: 27, name: "李雨桐", points: 38, redeemed: 0, attendance: "present", note: "" },
+      { num: 28, name: "廖珞謙", points: 30, redeemed: 0, attendance: "present", note: "" },
+      { num: 29, name: "劉朋朋", points: 38, redeemed: 0, attendance: "present", note: "" },
+      { num: 30, name: "邱添", points: 31, redeemed: 0, attendance: "present", note: "" },
+      { num: 31, name: "蕭沛楠", points: 39, redeemed: 0, attendance: "present", note: "" },
+      { num: 32, name: "曾憲熙", points: 40, redeemed: 0, attendance: "present", note: "" },
+      { num: 33, name: "謝明曦", points: 34, redeemed: 0, attendance: "present", note: "" },
+      { num: 34, name: "文思穎", points: 38, redeemed: 0, attendance: "present", note: "" },
+      { num: 35, name: "黃靖恩", points: 38, redeemed: 0, attendance: "present", note: "" },
+      { num: 36, name: "黃正然", points: 32, redeemed: 0, attendance: "present", note: "" },
+      { num: 37, name: "王嘉昕", points: 41, redeemed: 0, attendance: "present", note: "" },
+      { num: 38, name: "黃煒晉", points: 41, redeemed: 0, attendance: "present", note: "" },
+      { num: 39, name: "黃宇芊", points: 45, redeemed: 0, attendance: "present", note: "" },
+      { num: 40, name: "吳凱峰", points: 43, redeemed: 0, attendance: "present", note: "" },
+      { num: 41, name: "張晨宇", points: 37, redeemed: 0, attendance: "present", note: "" }
+    ];
+
+    // Global State
+    let studentsData = [];
+    let isMultiSelectMode = false;
+    let selectedSet = new Set();
+    let currentStudentNum = null;
+    let currentAiImageBase64 = null;
+    let currentAiResults = [];
+
+    // Web Audio Synthesizer
+    let audioCtx = null;
+    function playSound(type) {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+
+        if (type === 'add') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now); // C5
+          osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+          osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'sub') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.linearRampToValueAtTime(150, now + 0.2);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (type === 'win') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.setValueAtTime(554.37, now + 0.1);
+          osc.frequency.setValueAtTime(659.25, now + 0.2);
+          osc.frequency.setValueAtTime(880, now + 0.3);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+          osc.start(now);
+          osc.stop(now + 0.5);
+        }
+      } catch (e) {}
+    }
+
+    // ClassDojo SVG Procedural Monster Avatar Generator
+    function generateMonsterSVG(seedNum, size = 64) {
+      const colors = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#34d399', '#38bdf8', '#818cf8', '#c084fc', '#f472b6'];
+      const eyeCounts = [1, 2, 3];
+      const color = colors[(seedNum * 7) % colors.length];
+      const eyeCount = eyeCounts[seedNum % eyeCounts.length];
+
+      let eyesSVG = '';
+      if (eyeCount === 1) {
+        eyesSVG = `
+          <circle cx="50" cy="42" r="14" fill="white" />
+          <circle cx="50" cy="42" r="6" fill="#0f172a" />
+          <circle cx="52" cy="40" r="2.5" fill="white" />
+        `;
+      } else if (eyeCount === 2) {
+        eyesSVG = `
+          <circle cx="38" cy="42" r="11" fill="white" />
+          <circle cx="38" cy="42" r="5" fill="#0f172a" />
+          <circle cx="40" cy="40" r="2" fill="white" />
+          <circle cx="62" cy="42" r="11" fill="white" />
+          <circle cx="62" cy="42" r="5" fill="#0f172a" />
+          <circle cx="64" cy="40" r="2" fill="white" />
+        `;
+      } else {
+        eyesSVG = `
+          <circle cx="32" cy="45" r="9" fill="white" />
+          <circle cx="32" cy="45" r="4" fill="#0f172a" />
+          <circle cx="50" cy="38" r="10" fill="white" />
+          <circle cx="50" cy="38" r="4.5" fill="#0f172a" />
+          <circle cx="68" cy="45" r="9" fill="white" />
+          <circle cx="68" cy="45" r="4" fill="#0f172a" />
+        `;
+      }
+
+      return `
+        <svg width="${size}" height="${size}" viewBox="0 0 100 100" class="w-full h-full drop-shadow-md">
+          <!-- Horns / Ears -->
+          <path d="M 28 32 Q 15 15 35 24 Z" fill="${color}" opacity="0.8" />
+          <path d="M 72 32 Q 85 15 65 24 Z" fill="${color}" opacity="0.8" />
+          <!-- Body Shape -->
+          <rect x="20" y="24" width="60" height="62" rx="28" fill="${color}" />
+          <!-- Belly -->
+          <ellipse cx="50" cy="68" rx="20" ry="14" fill="white" opacity="0.3" />
+          <!-- Eyes -->
+          ${eyesSVG}
+          <!-- Mouth -->
+          <path d="M 40 64 Q 50 72 60 64" stroke="#0f172a" stroke-width="3.5" stroke-linecap="round" fill="none" />
+          <!-- Teeth -->
+          <polygon points="46,64 48,68 50,64" fill="white" />
+        </svg>
+      `;
+    }
+
+    // Modal Global Handlers
+    window.openModal = function(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('hidden');
+        if (id === 'summaryModal') renderSummary();
+        if (id === 'recessModal') renderRecessList();
+      }
+    };
+
+    window.closeModal = function(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    };
+
+    // Toast Notification
+    window.showToast = function(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      const toastText = document.getElementById('toast-text');
+      const toastIcon = document.getElementById('toast-icon');
+      if (!toast || !toastText) return;
+      toastText.textContent = msg;
+      toastIcon.className = isError ? 'fa-solid fa-circle-exclamation text-rose-400 text-lg' : 'fa-solid fa-circle-check text-emerald-400 text-lg';
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    };
+
+    // System Initialization & Storage
+    function init() {
+      try {
+        const saved = localStorage.getItem('2b_class_students_v5');
+        if (saved) {
+          studentsData = JSON.parse(saved);
+        } else {
+          studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
+        }
+
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+          document.getElementById('userApiKey').value = savedKey;
+        }
+      } catch (e) {
+        studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
+      }
+
+      populateManualSeatDropdown();
+      renderStudentsGrid();
+      updateHeaderStats();
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('2b_class_students_v5', JSON.stringify(studentsData));
+      } catch (e) {}
+      updateHeaderStats();
+    }
+
+    function updateHeaderStats() {
+      const totalPts = studentsData.reduce((acc, s) => acc + s.points, 0);
+      const totalGifts = studentsData.reduce((acc, s) => acc + (s.redeemed || 0), 0);
+      const recessCount = studentsData.filter(s => s.attendance === 'recess').length;
+
+      document.getElementById('stat-total-points').textContent = totalPts;
+      document.getElementById('stat-total-gifts').textContent = totalGifts;
+
+      const recessBadge = document.getElementById('stat-recess-badge');
+      const recessCountSpan = document.getElementById('stat-recess-count');
+      if (recessCount > 0) {
+        recessBadge.classList.remove('hidden');
+        recessCountSpan.textContent = recessCount;
+      } else {
+        recessBadge.classList.add('hidden');
+      }
+    }
+
+    // Render Student Cards
+    window.renderStudentsGrid = function(filterQuery = '') {
+      const grid = document.getElementById('students-grid');
+      grid.innerHTML = '';
+
+      const query = filterQuery.trim().toLowerCase();
+      const filtered = studentsData.filter(s => {
+        const numStr = s.num.toString().padStart(2, '0');
+        return s.name.toLowerCase().includes(query) || numStr.includes(query) || s.num.toString().includes(query);
+      });
+
+      filtered.forEach(student => {
+        const giftProgress = (student.points % 30) / 30 * 100;
+        const availableGifts = Math.floor(student.points / 30);
+        const isSelected = selectedSet.has(student.num);
+        const isRecess = student.attendance === 'recess';
+
+        const card = document.createElement('div');
+        card.className = `student-card bg-white rounded-3xl p-3.5 sm:p-4 border-2 transition-all shadow-sm flex flex-col justify-between relative overflow-hidden ${
+          isSelected ? 'border-emerald-500 bg-emerald-50/30 shadow-md scale-[1.02]' : isRecess ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md'
+        }`;
+
+        card.innerHTML = `
+          ${isMultiSelectMode ? `
+            <div class="absolute top-3 left-3 z-10">
+              <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectStudent(${student.num})" class="w-5 h-5 text-emerald-600 rounded-md focus:ring-emerald-500">
+            </div>
+          ` : ''}
+
+          <div class="flex items-center justify-between text-xs font-black text-slate-400 mb-1">
+            <span>#${student.num.toString().padStart(2, '0')}</span>
+            <button onclick="toggleStudentAttendance(${student.num})" class="px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              isRecess ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }">
+              ${isRecess ? '🚨 留小息' : '正常'}
+            </button>
+          </div>
+
+          <div onclick="${isMultiSelectMode ? `toggleSelectStudent(${student.num})` : `openPointModal(${student.num})`}" class="cursor-pointer text-center space-y-2 py-1">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 mx-auto monster-avatar-container">
+              ${generateMonsterSVG(student.num)}
+            </div>
+
+            <div>
+              <div class="font-black text-base sm:text-lg text-slate-800 tracking-tight leading-tight">${student.name}</div>
+              ${student.note ? `<div class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md inline-block mt-1 max-w-full truncate">📝 ${student.note}</div>` : ''}
+            </div>
+
+            <div class="flex items-center justify-center gap-1">
+              <span class="text-2xl sm:text-3xl font-black text-slate-800">${student.points}</span>
+              <span class="text-xs font-bold text-slate-400">分</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
+                <div class="bg-gradient-to-r from-emerald-400 to-teal-500 h-full progress-fill" style="width: ${giftProgress}%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] font-bold text-slate-400 px-0.5">
+                <span>兌換進度</span>
+                <span>${student.points % 30}/30</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 mt-2 flex gap-1.5">
+            <button onclick="openPointModal(${student.num})" class="flex-1 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 border border-emerald-200">
+              <i class="fa-solid fa-plus-minus"></i> 加/扣分
+            </button>
+            ${availableGifts > 0 ? `
+              <button onclick="openGiftModal(${student.num})" class="px-2.5 py-1.5 bg-pink-500 hover:bg-pink-600 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1">
+                <i class="fa-solid fa-gift"></i> <span class="text-[11px] font-extrabold">${availableGifts}</span>
+              </button>
+            ` : ''}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    };
+
+    // Student Interaction Logic
+    window.handleSearch = function(val) {
+      renderStudentsGrid(val);
+    };
+
+    window.toggleMultiSelectMode = function() {
+      isMultiSelectMode = !isMultiSelectMode;
+      selectedSet.clear();
+      document.getElementById('multiselect-bar').classList.toggle('hidden', !isMultiSelectMode);
+      document.getElementById('selected-count').textContent = '0';
+      renderStudentsGrid();
+    };
+
+    window.toggleSelectStudent = function(num) {
+      if (selectedSet.has(num)) {
+        selectedSet.delete(num);
+      } else {
+        selectedSet.add(num);
+      }
+      document.getElementById('selected-count').textContent = selectedSet.size;
+      renderStudentsGrid(document.getElementById('searchInput').value);
+    };
+
+    window.selectAllStudents = function(bool) {
+      if (bool) {
+        studentsData.forEach(s => selectedSet.add(s.num));
+      } else {
+        selectedSet.clear();
+      }
+      document.getElementById('selected-count').textContent = selectedSet.size;
+      renderStudentsGrid(document.getElementById('searchInput').value);
+    };
+
+    window.openBulkPointModal = function(delta) {
+      if (selectedSet.size === 0) {
+        showToast('請先勾選學生！', true);
+        return;
+      }
+      selectedSet.forEach(num => {
+        const student = studentsData.find(s => s.num === num);
+        if (student) {
+          student.points = Math.max(0, student.points + delta);
+        }
+      });
+      saveState();
+      renderStudentsGrid();
+      playSound(delta > 0 ? 'add' : 'sub');
+      showToast(`已成功為 ${selectedSet.size} 位學生 ${delta > 0 ? '+' : ''}${delta} 分！`);
+    };
+
+    window.openPointModal = function(num) {
+      currentStudentNum = num;
+      const student = studentsData.find(s => s.num === num);
+      if (!student) return;
+
+      document.getElementById('modal-student-title').textContent = `#${student.num.toString().padStart(2, '0')} ${student.name}`;
+      document.getElementById('modal-student-pts').textContent = student.points;
+      document.getElementById('modal-student-avatar').innerHTML = generateMonsterSVG(student.num, 48);
+      document.getElementById('modal-student-note-input').value = student.note || '';
+
+      openModal('pointModal');
+    };
+
+    window.quickAdjustScore = function(delta, reason = '') {
+      if (!currentStudentNum) return;
+      const student = studentsData.find(s => s.num === currentStudentNum);
+      if (!student) return;
+
+      student.points = Math.max(0, student.points + delta);
+      if (reason) {
+        showToast(`${student.name} ${reason} (${delta > 0 ? '+' : ''}${delta}分)`);
+      }
+      saveState();
+      document.getElementById('modal-student-pts').textContent = student.points;
+      renderStudentsGrid(document.getElementById('searchInput').value);
+      playSound(delta > 0 ? 'add' : 'sub');
+    };
+
+    window.saveStudentNote = function() {
+      if (!currentStudentNum) return;
+      const student = studentsData.find(s => s.num === currentStudentNum);
+      if (!student) return;
+      student.note = document.getElementById('modal-student-note-input').value.trim();
+      saveState();
+      closeModal('pointModal');
+      renderStudentsGrid();
+      showToast('已更新學生備註');
+    };
+
+    window.toggleStudentAttendance = function(num) {
+      const student = studentsData.find(s => s.num === num);
+      if (!student) return;
+      student.attendance = student.attendance === 'recess' ? 'present' : 'recess';
+      saveState();
+      renderStudentsGrid();
+      showToast(`${student.name} 已${student.attendance === 'recess' ? '設為留小息' : '取消留小息'}`);
+    };
+
+    window.openGiftModal = function(num) {
+      currentStudentNum = num;
+      const student = studentsData.find(s => s.num === num);
+      if (!student) return;
+
+      const available = Math.floor(student.points / 30);
+      document.getElementById('gift-modal-student-title').textContent = `${student.name} 兌換禮物`;
+      document.getElementById('gift-modal-pts').textContent = student.points;
+      document.getElementById('gift-modal-count').textContent = available;
+
+      const btn = document.getElementById('btn-redeem-action');
+      btn.disabled = available <= 0;
+
+      openModal('giftModal');
+    };
+
+    window.executeRedeemGift = function() {
+      if (!currentStudentNum) return;
+      const student = studentsData.find(s => s.num === currentStudentNum);
+      if (!student || student.points < 30) return;
+
+      student.points -= 30;
+      student.redeemed = (student.redeemed || 0) + 1;
+      saveState();
+      closeModal('giftModal');
+      renderStudentsGrid();
+      playSound('win');
+      showToast(`🎉 成功幫 ${student.name} 兌換 1 份禮物！ (扣除 30 分)`);
+    };
+
+    // Gemini 3.8 Flash API Scanner Engine
+    window.saveApiKey = function(key) {
+      localStorage.setItem('gemini_api_key', key.trim());
+      showToast('API Key 已儲存');
+    };
+
+    window.handleImageSelected = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        currentAiImageBase64 = evt.target.result.split(',')[1];
+        document.getElementById('ai-preview-img').src = evt.target.result;
+        document.getElementById('ai-preview-box').classList.remove('hidden');
+        document.getElementById('ai-result-section').classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.processWhiteboardImage = async function() {
+      const apiKey = document.getElementById('userApiKey').value.trim() || localStorage.getItem('gemini_api_key');
+      if (!apiKey) {
+        showToast('請先貼上有效的 Gemini API Key！', true);
+        return;
+      }
+
+      document.getElementById('ai-loading').classList.remove('hidden');
+      document.getElementById('ai-preview-box').classList.add('hidden');
+
+      const prompt = `Analyze this whiteboard/paper image containing student seat numbers and added points.
+Return STRICTLY a JSON object without markdown formatting:
+{
+  "recognized": [
+    { "seat": 1, "points": 2 },
+    { "seat": 7, "points": 2 }
+  ],
+  "unclear": [
+    "Blurry handwriting near seat 8 - skipped",
+    "Ambiguous mark beside seat 14 - skipped"
+  ]
+}
+Rule 1: Only include 100% CLEAR, unambiguous seat numbers (between 1 and 41) in "recognized".
+Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT from "recognized" and list it under "unclear".`;
+
+      const requestPayload = {
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: "image/jpeg", data: currentAiImageBase64 } }
+          ]
+        }],
+        generationConfig: { response_mime_type: "application/json" }
+      };
+
+      const models = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview'];
+      let success = false;
+
+      for (const model of models) {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestPayload)
+          });
+
+          if (!response.ok) continue;
+          const data = await response.json();
+          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!rawText) continue;
+
+          const jsonClean = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(jsonClean);
+
+          currentAiResults = parsed.recognized || [];
+          displayAiResults(currentAiResults, parsed.unclear || []);
+          success = true;
+          break;
+        } catch (err) {}
+      }
+
+      document.getElementById('ai-loading').classList.add('hidden');
+
+      if (!success) {
+        showToast('AI 辨識失敗，請檢查 API Key 或照片清晰度', true);
+        document.getElementById('ai-preview-box').classList.remove('hidden');
+      }
+    };
+
+    function displayAiResults(recognized, unclear) {
+      document.getElementById('ai-result-section').classList.remove('hidden');
+      document.getElementById('ai-recognized-count').textContent = `成功辨識 ${recognized.length} 個清晰座號`;
+
+      const seatsContainer = document.getElementById('ai-seats-container');
+      seatsContainer.innerHTML = '';
+      recognized.forEach(item => {
+        const student = studentsData.find(s => s.num === item.seat);
+        const div = document.createElement('div');
+        div.className = 'bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs flex items-center justify-between font-bold text-emerald-900';
+        div.innerHTML = `
+          <span>#${item.seat.toString().padStart(2, '0')} ${student ? student.name : ''}</span>
+          <span class="bg-emerald-600 text-white px-2 py-0.5 rounded-lg">+${item.points}分</span>
+        `;
+        seatsContainer.appendChild(div);
+      });
+
+      const unclearBox = document.getElementById('ai-unclear-box');
+      const unclearList = document.getElementById('ai-unclear-list');
+      unclearList.innerHTML = '';
+      if (unclear.length > 0) {
+        unclearBox.classList.remove('hidden');
+        unclear.forEach(msg => {
+          const li = document.createElement('li');
+          li.textContent = msg;
+          unclearList.appendChild(li);
+        });
+      } else {
+        unclearBox.classList.add('hidden');
+      }
+
+      document.getElementById('btn-apply-ai').disabled = (recognized.length === 0);
+    }
+
+    function populateManualSeatDropdown() {
+      const select = document.getElementById('manualSeatSelect');
+      if (!select) return;
+      select.innerHTML = '';
+      INITIAL_STUDENTS.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.num;
+        opt.textContent = `#${s.num.toString().padStart(2, '0')} ${s.name}`;
+        select.appendChild(opt);
+      });
+    }
+
+    window.addManualSeatItem = function() {
+      const seatNum = parseInt(document.getElementById('manualSeatSelect').value, 10);
+      const pts = parseInt(document.getElementById('manualPtsInput').value, 10) || 1;
+
+      currentAiResults.push({ seat: seatNum, points: pts });
+      displayAiResults(currentAiResults, []);
+      showToast(`手動加入座號 #${seatNum} (+${pts}分)`);
+    };
+
+    window.applyAiScanResults = function() {
+      if (currentAiResults.length === 0) return;
+      currentAiResults.forEach(item => {
+        const student = studentsData.find(s => s.num === item.seat);
+        if (student) {
+          student.points += item.points;
+        }
+      });
+      saveState();
+      closeModal('aiModal');
+      renderStudentsGrid();
+      playSound('win');
+      showToast(`🎉 成功更新全班 ${currentAiResults.length} 項 AI 辨識分數！`);
+    };
+
+    // Summary Leaderboard
+    function renderSummary() {
+      const totalPts = studentsData.reduce((a, b) => a + b.points, 0);
+      const totalGifts = studentsData.reduce((a, b) => a + (b.redeemed || 0), 0);
+      document.getElementById('summary-total-pts').textContent = totalPts;
+      document.getElementById('summary-total-gifts').textContent = totalGifts + ' 份';
+      document.getElementById('summary-avg-pts').textContent = (totalPts / studentsData.length).toFixed(1);
+
+      const sorted = [...studentsData].sort((a, b) => b.points - a.points).slice(0, 10);
+      const list = document.getElementById('leaderboard-list');
+      list.innerHTML = '';
+      sorted.forEach((s, idx) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold';
+        div.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 flex items-center justify-center rounded-full text-white text-[10px] ${idx === 0 ? 'bg-amber-500' : idx === 1 ? 'bg-slate-400' : idx === 2 ? 'bg-amber-700' : 'bg-slate-300'}">${idx + 1}</span>
+            <span>#${s.num.toString().padStart(2, '0')} ${s.name}</span>
+          </div>
+          <span class="text-emerald-600 font-extrabold text-sm">${s.points} 分</span>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    // Recess List
+    function renderRecessList() {
+      const container = document.getElementById('recess-list-container');
+      const recessStudents = studentsData.filter(s => s.attendance === 'recess');
+      container.innerHTML = '';
+      if (recessStudents.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-slate-400 text-xs">目前無人需留小息 🎉</div>`;
+        return;
+      }
+      recessStudents.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-900';
+        div.innerHTML = `
+          <span>#${s.num.toString().padStart(2, '0')} ${s.name}</span>
+          <button onclick="toggleStudentAttendance(${s.num}); renderRecessList();" class="px-2.5 py-1 bg-white border border-rose-300 text-rose-700 rounded-xl hover:bg-rose-100">
+            解除留小息
+          </button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    window.clearAllRecess = function() {
+      studentsData.forEach(s => { s.attendance = 'present'; });
+      saveState();
+      renderRecessList();
+      renderStudentsGrid();
+      showToast('已清空全班留小息名單');
+    };
+
+    // Random Lottery Wheel
+    window.startLotteryDraw = function() {
+      let count = 0;
+      const interval = setInterval(() => {
+        const rand = studentsData[Math.floor(Math.random() * studentsData.length)];
+        document.getElementById('lottery-avatar').innerHTML = generateMonsterSVG(rand.num, 80);
+        document.getElementById('lottery-name').textContent = `#${rand.num.toString().padStart(2, '0')} ${rand.name}`;
+        playSound('sub');
+        count++;
+        if (count > 15) {
+          clearInterval(interval);
+          playSound('win');
+          showToast(`🎯 抽中了 #${rand.num.toString().padStart(2, '0')} ${rand.name}！`);
+        }
+      }, 100);
+    };
+
+    // Backup & Reset
+    window.exportBackupJSON = function() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(studentsData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `2B_Class_Scores_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    };
+
+    window.confirmResetAllData = function() {
+      if (confirm('確定要將全班分數重置回預設 Initial 狀態嗎？')) {
+        studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
+        saveState();
+        renderStudentsGrid();
+        showToast('全班分數與紀錄已重置');
+      }
+    };
+
+    // Execute Startup
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
