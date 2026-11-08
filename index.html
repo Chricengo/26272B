@@ -1857,12 +1857,42 @@
         const handleImageUpload = (e) => {
           const file = e.target.files[0];
           if (!file) return;
-          aiMimeType.value = file.type || 'image/jpeg';
+          
+          isScanning.value = false;
+          scanResults.value = [];
+
           const reader = new FileReader();
           reader.onload = (event) => {
-            aiImagePreview.value = event.target.result;
-            aiImageBase64.value = event.target.result.split(',')[1];
-            scanResults.value = [];
+            const img = new Image();
+            img.onload = () => {
+              // Downscale large mobile photos to max 1600px for ultra-fast, high-accuracy AI vision OCR
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              const maxDim = 1600;
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              aiImagePreview.value = resizedDataUrl;
+              aiImageBase64.value = resizedDataUrl.split(',')[1];
+              aiMimeType.value = 'image/jpeg';
+            };
+            img.src = event.target.result;
           };
           reader.readAsDataURL(file);
         };
@@ -1877,21 +1907,24 @@
           scanResults.value = [];
 
           try {
-            const studentRosterStr = students.value.map(s => `${s.num}號 ${s.name}`).join(', ');
-            const systemPrompt = `你是一個極度精準的班級助教 AI。
-老師在白板上只會手寫「學號/座號」（不會寫加多少分）。寫一次學號即代表加 1 分！
+            const studentRosterStr = students.value.map(s => `${s.num}號:${s.name}`).join(', ');
+            const systemPrompt = `你是一位精通手寫字與白板視覺辨識 (OCR) 的班級 AI 專家。
+老師拍下了課堂白板照片，白板上記錄著學生的座號（學號 1 至 41）。
 
-請使用深度的視覺推理能力，仔細掃描圖像中的手寫學號數字：
-1. 白板上只寫數字學號（例如手寫 1 代表 01號、手寫 5 代表 05號）。
-2. 每出現一次該學號，就代表該位學生加 1 分。若同一個學號在白板上出現多次（例如出現了 3 次 01 號、或寫在不同區域、或有正字記號劃記），請精確統計該學號出現的總次數作為加分分數（例如出現 3 次即代表 +3 分）。
-3. 將辨識出的學號對照以下 2B 班 41 位學生名單，自動轉換為兩位數座號字串並帶出正確姓名：
-${studentRosterStr}
+【手寫字與白板辨識指令】：
+1. 仔細掃描圖像中的所有手寫文字、數字、符號、劃記與列表。白板筆手寫字可能傾斜、粗細不一或有燈光反光。
+2. 辨識所有代表學生座號的數字 (如: 1, 01, 2, 02, 5, 12, 35 ... 等數字)。
+3. 計分邏輯：
+   - 白板上寫一次學號代表加 1 分 (+1)。
+   - 如果同一個學號在不同區域、欄位出現多次，請將次數加總為總分數（例如寫了 3 次 1 號，即計算為 3 分）。
+   - 若學號旁邊有明確手寫數字（如 "1 +2" 或 "05 3"），請以手寫的分數為主。
+4. 將辨識出的學號精確比對 2B 班名單：
+   ${studentRosterStr}
 
-請輸出 JSON 陣列，格式規範：
-- "num": 兩位數座號字串 (如 "01", "05", "12", "41")
-- "name": 對應的學生姓名
-- "points": 該學號在白板上出現的總次數 (正整數，寫 1 次即為 1 分)
-- "reason": 簡短說明 (如 "白板寫入 1 次", "白板寫入 3 次")`;
+請務必返回嚴格 JSON 陣列：
+[
+  { "num": "01", "name": "陳柏立", "points": 1, "reason": "辨識到手寫學號 1 (出現1次)" }
+]`;
 
             const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
@@ -1901,7 +1934,7 @@ ${studentRosterStr}
                 {
                   role: 'user',
                   parts: [
-                    { text: '請仔細分析這張手寫白板照片，辨識所有寫下的學號，寫一次代表 1 分，計算每個學號的出現次數與總加分：' },
+                    { text: '請仔細檢視並辨識照片中白板上記錄的所有手寫學號與數字，計算每位學生獲得的分數：' },
                     {
                       inlineData: {
                         mimeType: aiMimeType.value,
@@ -1948,7 +1981,7 @@ ${studentRosterStr}
                 showToast(`🎉 成功辨識 ${parsed.length} 項學號加分記錄！`);
                 playChimeSound('gift');
               } else {
-                showToast('未在照片中辨識到明確的學號紀錄。');
+                showToast('未在照片中辨識到明確的手寫學號。請嘗試拍得更清楚或接近白板。');
               }
             } else {
               showToast('辨識失敗，請重新拍攝清晰的白板照片。');
