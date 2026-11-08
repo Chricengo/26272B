@@ -1259,7 +1259,11 @@ function getAudioContext() {
   }
   return globalAudioCtx;
 }
-document.addEventListener('pointerdown', () => { getAudioContext(); }, { once: true });
+
+// Unlock audio context reliably on iOS Safari & mobile devices
+['click', 'touchstart', 'pointerdown'].forEach(evt => {
+  document.addEventListener(evt, () => { getAudioContext(); }, { once: true });
+});
 
 function playChimeSound(type) {
   try {
@@ -1639,40 +1643,43 @@ function initVueApp() {
         if (!file) return;
 
         aiErrorMessage.value = '';
-        const img = new Image();
-        const url = URL.createObjectURL(file);
         
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const maxDim = 1200;
-          let width = img.width;
-          let height = img.height;
+        // Use FileReader for 100% reliability on iOS Safari camera uploads
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDim = 1200;
+            let width = img.width;
+            let height = img.height;
 
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
             }
-          }
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill background white to prevent black backgrounds on iOS photo conversions
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
 
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          aiImagePreview.value = dataUrl;
-          aiImageBase64.value = dataUrl.split(',')[1];
-          URL.revokeObjectURL(url);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            aiImagePreview.value = dataUrl;
+            aiImageBase64.value = dataUrl.split(',')[1];
+          };
+          img.src = e.target.result;
         };
-
-        img.src = url;
+        reader.readAsDataURL(file);
       };
 
       const processWhiteboardImage = async () => {
@@ -1698,8 +1705,7 @@ function initVueApp() {
         const candidateModels = [
           'gemini-3.8-flash',
           'gemini-3.6-flash',
-          'gemini-3-flash-preview',
-          'gemini-2.5-flash'
+          'gemini-3-flash-preview'
         ];
 
         const promptText = `Analyse this image containing student seat numbers (01-41) and scores written on paper, whiteboard, notebook, or screen.
@@ -1750,7 +1756,7 @@ Extract seat numbers and scores. Output strictly a JSON array of objects without
               if (responseText) break;
             } else {
               const errJson = await response.json().catch(() => ({}));
-              lastError = errJson.error?.message || `HTTP ${response.status}`;
+              lastError = errJson.error?.message || `HTTP ${response.status} (${model})`;
             }
           } catch (err) {
             lastError = err.message;
