@@ -964,13 +964,30 @@
         <p class="text-[10px] text-amber-600 mt-1">💡 系統優先調用 <b>gemini-3.8-flash</b> 端點（自動備援至 3.6-flash）。Key 僅儲存於您的瀏覽器中。</p>
       </div>
 
-      <!-- Upload Button Area -->
-      <div class="mb-4">
-        <label class="cursor-pointer bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-4 text-center transition flex flex-col items-center justify-center gap-2">
-          <i class="fa-solid fa-cloud-arrow-up text-2xl text-rose-500"></i>
-          <span class="text-xs font-bold text-slate-700">點擊選擇照片 / 使用裝置拍攝數字名單</span>
-          <span class="text-[10px] text-slate-400">支援 JPG, PNG, HEIC 格式</span>
+      <!-- Dual Input Options: Camera vs Photo Library -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <!-- Option 1: Take Photo with Camera -->
+        <label class="cursor-pointer bg-gradient-to-br from-rose-50 to-pink-50 hover:from-rose-100 hover:to-pink-100 border-2 border-rose-200/90 rounded-2xl p-4 text-center transition flex flex-col items-center justify-center gap-2 group active:scale-95 shadow-sm">
+          <div class="w-11 h-11 rounded-2xl bg-rose-500 text-white flex items-center justify-center text-xl group-hover:scale-110 transition-transform shadow">
+            <i class="fa-solid fa-camera"></i>
+          </div>
+          <div>
+            <span class="text-xs font-extrabold text-rose-900 block">📸 即時拍攝照片</span>
+            <span class="text-[10px] font-bold text-rose-600">開啟 iPhone / 裝置鏡頭</span>
+          </div>
           <input type="file" accept="image/*" capture="environment" @change="handleImageUpload" class="hidden">
+        </label>
+
+        <!-- Option 2: Upload from Photo Library / Files -->
+        <label class="cursor-pointer bg-gradient-to-br from-indigo-50 to-sky-50 hover:from-indigo-100 hover:to-sky-100 border-2 border-indigo-200/90 rounded-2xl p-4 text-center transition flex flex-col items-center justify-center gap-2 group active:scale-95 shadow-sm">
+          <div class="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl group-hover:scale-110 transition-transform shadow">
+            <i class="fa-solid fa-images"></i>
+          </div>
+          <div>
+            <span class="text-xs font-extrabold text-indigo-900 block">🖼️ 從相片庫 / 檔案選取</span>
+            <span class="text-[10px] font-bold text-indigo-600">選擇手機相簿現有照片</span>
+          </div>
+          <input type="file" accept="image/*" @change="handleImageUpload" class="hidden">
         </label>
       </div>
 
