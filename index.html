@@ -1008,7 +1008,7 @@
           <div class="flex items-center justify-between mb-1">
             <label class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
               <i class="fa-solid fa-key text-amber-600"></i>
-              <span>Google Gemini API Key (GitHub / 自訂網域託管專用)</span>
+              <span>Google Gemini API Key (Google AI Studio 專用)</span>
             </label>
             <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[10px] text-amber-700 underline font-bold hover:text-amber-900">
               免費獲取 Key ↗
@@ -1018,10 +1018,10 @@
             type="password" 
             v-model="userApiKey" 
             @change="saveApiKey"
-            placeholder="貼上您的 Gemini API Key (例如: AIzaSy...)" 
+            placeholder="貼上您的 Gemini API Key (例如 AQ... 或 AIza...)" 
             class="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
           >
-          <p class="text-[10px] text-amber-600 mt-1">此 Key 僅保存在您的瀏覽器中，不會傳送至外部伺服器。</p>
+          <p class="text-[10px] text-amber-600 mt-1">💡 完全支援 Google AI Studio 最新 AQ... 與傳統 AIza... 格式 Key。Key 僅存於本機瀏覽器。</p>
         </div>
 
         <!-- Image Upload Area -->
@@ -1609,20 +1609,6 @@
           return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         });
 
-        const loadData = () => {
-          try {
-            const saved = localStorage.getItem('class_2b_data');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length === 41) {
-                students.value = parsed;
-              }
-            }
-          } catch(e) {
-            console.error('Failed to load local storage:', e);
-          }
-        };
-
         const showToast = (msg) => {
           toastMessage.value = msg;
           setTimeout(() => {
@@ -1632,24 +1618,37 @@
 
         const saveData = () => {
           try {
-            localStorage.setItem('class_2b_data', JSON.stringify(students.value));
-          } catch(e) {
+            localStorage.setItem('class2b_students', JSON.stringify(students.value));
+            localStorage.setItem('class2b_gifts', JSON.stringify(giftCatalog.value));
+          } catch (e) {
             console.error('Save error:', e);
           }
         };
 
-        watch(students, () => {
-          saveData();
-        }, { deep: true });
+        const loadData = () => {
+          try {
+            const savedStudents = localStorage.getItem('class2b_students');
+            if (savedStudents) {
+              students.value = JSON.parse(savedStudents);
+            }
+            const savedGifts = localStorage.getItem('class2b_gifts');
+            if (savedGifts) {
+              giftCatalog.value = JSON.parse(savedGifts);
+            }
+          } catch (e) {
+            console.error('Load error:', e);
+          }
+        };
 
         const saveApiKey = () => {
-          localStorage.setItem('gemini_api_key', userApiKey.value);
-          showToast('Gemini API Key 已儲存！');
+          localStorage.setItem('gemini_api_key', userApiKey.value.trim());
+          showToast('API Key 已成功儲存！');
         };
 
         const closeModal = () => {
           activeModal.value = null;
           selectedStudent.value = null;
+          bulkTargets.value = [];
         };
 
         const toggleMultipleMode = () => {
@@ -1660,13 +1659,16 @@
         const isStudentSelected = (id) => selectedMultiple.value.includes(id);
 
         const toggleSelectStudent = (id) => {
-          const idx = selectedMultiple.value.indexOf(id);
-          if (idx > -1) selectedMultiple.value.splice(idx, 1);
-          else selectedMultiple.value.push(id);
+          const index = selectedMultiple.value.indexOf(id);
+          if (index > -1) {
+            selectedMultiple.value.splice(index, 1);
+          } else {
+            selectedMultiple.value.push(id);
+          }
         };
 
         const selectAllStudents = () => {
-          selectedMultiple.value = filteredStudents.value.map(s => s.id);
+          selectedMultiple.value = students.value.map(s => s.id);
         };
 
         const getSelectedStudentObjects = () => {
@@ -1686,25 +1688,28 @@
           activeModal.value = 'point';
         };
 
-        const openBulkPointModal = (targetList) => {
-          bulkTargets.value = targetList;
+        const openBulkPointModal = (targets) => {
+          bulkTargets.value = targets;
           activeModal.value = 'bulkPoint';
         };
 
-        const adjustPoints = (student, delta, reason) => {
-          student.points = Math.max(0, (student.points || 0) + delta);
-          playChimeSound(delta > 0 ? 'positive' : 'negative');
-          showToast(`${student.name} ${delta > 0 ? '+' : ''}${delta} 分 (${reason})`);
+        const adjustPoints = (student, pts, reason) => {
+          student.points = Math.max(0, (student.points || 0) + pts);
           saveData();
+          playChimeSound(pts > 0 ? 'positive' : 'negative');
+          showToast(`${student.name} (${pts > 0 ? '+' : ''}${pts}分): ${reason}`);
+          if (pts > 0 && student.points % 30 === 0) {
+            if (typeof confetti === 'function') confetti();
+          }
         };
 
-        const adjustBulkPoints = (delta, reason) => {
-          bulkTargets.value.forEach(s => {
-            s.points = Math.max(0, (s.points || 0) + delta);
+        const adjustBulkPoints = (pts, reason) => {
+          bulkTargets.value.forEach(st => {
+            st.points = Math.max(0, (st.points || 0) + pts);
           });
-          playChimeSound(delta > 0 ? 'positive' : 'negative');
-          showToast(`已為 ${bulkTargets.value.length} 位同學 ${delta > 0 ? '+' : ''}${delta} 分 (${reason})`);
           saveData();
+          playChimeSound(pts > 0 ? 'positive' : 'negative');
+          showToast(`已為 ${bulkTargets.value.length} 位同學 (${pts > 0 ? '+' : ''}${pts}分): ${reason}`);
           closeModal();
         };
 
@@ -1715,95 +1720,90 @@
 
         const redeemGift = (student, gift) => {
           if (student.points < gift.cost) {
-            showToast('可用分數不足，無法換領！');
+            showToast('⚠️ 分數不足，無法換領！');
             return;
           }
           student.points -= gift.cost;
           student.redeemedPoints = (student.redeemedPoints || 0) + gift.cost;
           student.redeemedCount = (student.redeemedCount || 0) + 1;
-
-          playChimeSound('gift');
-          if (window.confetti) {
-            window.confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-          }
-          showToast(`🎉 ${student.name} 成功換領 ${gift.name}！`);
           saveData();
+          playChimeSound('gift');
+          if (typeof confetti === 'function') {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          }
+          showToast(`🎉 ${student.name} 成功換領: ${gift.name}！`);
         };
 
         const saveNewGift = () => {
-          if (!newGiftForm.value.name.trim()) return;
+          if (!newGiftForm.value.name.trim() || !newGiftForm.value.cost) return;
           giftCatalog.value.push({
             id: Date.now(),
             name: newGiftForm.value.name.trim(),
-            cost: newGiftForm.value.cost || 30,
+            cost: Number(newGiftForm.value.cost),
             icon: '🎁'
           });
-          newGiftForm.value.name = '';
-          newGiftForm.value.cost = 30;
+          newGiftForm.value = { name: '', cost: 30 };
+          saveData();
           activeModal.value = 'gift';
-          showToast('自訂禮物已儲存！');
+          showToast('已新增自訂禮物！');
         };
 
         const getAttendanceLabel = (status) => {
-          switch (status) {
-            case 'present': return '出席';
-            case 'absent': return '缺席';
-            case 'late': return '遲到';
-            case 'leave': return '早退';
-            default: return '出席';
-          }
+          const map = { present: '出席', absent: '缺席', late: '遲到', leave: '早退' };
+          return map[status] || '出席';
         };
 
         const toggleStudentAttendance = (student) => {
-          const states = ['present', 'late', 'absent', 'leave'];
-          const currentIdx = states.indexOf(student.attendance || 'present');
-          student.attendance = states[(currentIdx + 1) % states.length];
+          const order = ['present', 'absent', 'late', 'leave'];
+          const idx = order.indexOf(student.attendance || 'present');
+          student.attendance = order[(idx + 1) % order.length];
           saveData();
         };
 
         const clearAllRecess = () => {
-          students.value.forEach(s => { s.stayRecess = false; s.recessReason = ''; });
-          showToast('已清空所有留小息標記！');
+          students.value.forEach(s => {
+            s.stayRecess = false;
+            s.recessReason = '';
+          });
           saveData();
+          showToast('已清空全班留小息標記！');
         };
 
         const randomizeSingleAvatar = (student) => {
           student.seed = Math.floor(Math.random() * 900000) + 100000;
-          showToast(`已更新 ${student.name} 的頭像`);
           saveData();
+          showToast(`已更換 ${student.name} 的頭像！`);
         };
 
         const randomizeAllAvatars = () => {
           students.value.forEach(s => {
             s.seed = Math.floor(Math.random() * 900000) + 100000;
           });
-          showToast('全班頭像已更新！');
           saveData();
+          showToast('已完成全班頭像隨機重組！');
         };
 
         const startRandomPick = () => {
-          if (isPicking.value || students.value.length === 0) return;
+          if (isPicking.value) return;
           isPicking.value = true;
-          let counter = 0;
+          let count = 0;
+          const maxCount = 20;
           const interval = setInterval(() => {
-            const randomIndex = Math.floor(Math.random() * students.value.length);
-            randomPickedStudent.value = students.value[randomIndex];
+            const idx = Math.floor(Math.random() * students.value.length);
+            randomPickedStudent.value = students.value[idx];
             playChimeSound('tick');
-            counter++;
-            if (counter > 18) {
+            count++;
+            if (count >= maxCount) {
               clearInterval(interval);
               isPicking.value = false;
               playChimeSound('positive');
-              if (window.confetti) {
-                window.confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-              }
+              if (typeof confetti === 'function') confetti();
             }
           }, 100);
         };
 
         const setTimerPreset = (secs) => {
           timerSeconds.value = secs;
-          if (isTimerRunning.value) resetTimer();
         };
 
         const toggleTimer = () => {
@@ -1819,7 +1819,7 @@
                 clearInterval(timerTimer);
                 isTimerRunning.value = false;
                 playChimeSound('gift');
-                showToast('⏱️ 時間到！');
+                showToast('⏰ 課堂計時結束！');
               }
             }, 1000);
           }
@@ -1832,14 +1832,13 @@
         };
 
         const generateGroups = () => {
-          const shuffled = [...students.value].sort(() => Math.random() - 0.5);
-          const size = groupSize.value || 4;
+          const shuffled = [...students.value].sort(() => 0.5 - Math.random());
           const groups = [];
-          for (let i = 0; i < shuffled.length; i += size) {
-            groups.push(shuffled.slice(i, i + size));
+          const sz = Number(groupSize.value) || 4;
+          for (let i = 0; i < shuffled.length; i += sz) {
+            groups.push(shuffled.slice(i, i + sz));
           }
           generatedGroups.value = groups;
-          showToast(`已分成 ${groups.length} 組`);
         };
 
         const exportData = () => {
@@ -1848,7 +1847,7 @@
           dlAnchorElem.setAttribute("href", dataStr);
           dlAnchorElem.setAttribute("download", `2B_Class_Scores_${new Date().toISOString().slice(0,10)}.json`);
           dlAnchorElem.click();
-          showToast('數據已匯出下載');
+          showToast('已匯出備份檔案！');
         };
 
         const printSummary = () => {
@@ -1866,16 +1865,16 @@
           });
           saveData();
           closeModal();
-          showToast('系統已完全重置！');
+          showToast('全班分數與記錄已重置！');
         };
 
-        const handleImageUpload = (event) => {
-          const file = event.target.files[0];
+        const handleImageUpload = (e) => {
+          const file = e.target.files[0];
           if (!file) return;
 
           aiMimeType.value = file.type || 'image/jpeg';
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = (evt) => {
             const img = new Image();
             img.onload = () => {
               const canvas = document.createElement('canvas');
@@ -1902,71 +1901,96 @@
               aiImagePreview.value = resizedDataUrl;
               aiImageBase64.value = resizedDataUrl.split(',')[1];
             };
-            img.src = e.target.result;
+            img.src = evt.target.result;
           };
           reader.readAsDataURL(file);
         };
 
         const processWhiteboardImage = async () => {
           if (!aiImageBase64.value) {
-            showToast('請先選擇或拍攝照片！');
+            showToast('請先拍攝或上傳照片');
             return;
           }
 
-          const key = userApiKey.value.trim();
-          if (!key) {
-            showToast('⚠️ 請先輸入 Gemini API Key！');
+          const rawKey = userApiKey.value ? userApiKey.value.trim() : '';
+          const cleanKey = rawKey.replace(/^["']|["']$/g, '');
+          if (!cleanKey) {
+            showToast('⚠️ 請先輸入 Gemini API Key');
             return;
           }
 
           isScanning.value = true;
           scanResults.value = [];
 
-          const prompt = `
-你是一位香港小學班主任助理。這張照片上記錄了 2B 班學生手寫座號或分數。
-規則：
-1. 白板/紙張上記錄的可能只有座號數字（例如：1, 3, 5, 08, 12 或用逗號/空格相隔）。
-2. 每出現一次座號，代表該同學 +1 分。若同一個座號出現 N 次，代表該同學 +N 分。
-3. 如果座號旁有明確數字（如 "05 +2" 或 "12 -1"），則按該數字加減分。
+          const prompt = `你是 2B 班級白板與筆記辨識助手。
+照片內容為寫有學號、座號或數字的紙張、筆記本、白板或螢幕。
+【嚴格規則】：
+1. 白板或紙上上記錄的是學號/座號（1 至 41 號），寫一次代表該學生 +1 分。
+2. 數字可能以逗號相隔（如 "1, 3, 5, 12"）、空格、頓號或分行寫出。如果寫著 "1, 3, 5 各+2"，則 1、3、5 號各自加 2 分。若無特別標註加幾分，出現一次學號即算 +1 分。
+3. 2B 班全班學生名單：
+01 陳柏立, 02 陳弘量, 03 陳弈之, 04 鄭芊楠, 05 張可宜, 06 張素文, 07 周景謙, 08 周葆妍, 09 徐歌, 10 鍾允陶,
+11 鍾曜駿, 12 方睿晴, 13 許梓晙, 14 葉御琳, 15 郭靖希, 16 林寶, 17 林宥孜, 18 林奕謙, 19 劉綽妍, 20 李靖祈,
+21 梁晞雅, 22 梁凱博, 23 梁珼怡, 24 梁禮昭, 25 梁祐喬, 26 李宗睿, 27 李雨桐, 28 廖珞謙, 29 劉朋朋, 30 邱添,
+31 蕭沛楠, 32 曾憲熙, 33 謝明曦, 34 文思穎, 35 黃靖恩, 36 黃正然, 37 王嘉昕, 38 黃煒晉, 39 黃宇芊, 40 吳凱峰, 41 張晨宇。
 
-以下是 2B 班全班 41 位同學的座號與姓名對照表：
-01: 陳柏立, 02: 陳弘量, 03: 陳弈之, 04: 鄭芊楠, 05: 張可宜, 06: 張素文, 07: 周景謙, 08: 周葆妍, 09: 徐歌, 10: 鍾允陶,
-11: 鍾曜駿, 12: 方睿晴, 13: 許梓晙, 14: 葉御琳, 15: 郭靖希, 16: 林寶, 17: 林宥孜, 18: 林奕謙, 19: 劉綽妍, 20: 李靖祈,
-21: 梁晞雅, 22: 梁凱博, 23: 梁珼怡, 24: 梁禮昭, 25: 梁祐喬, 26: 李宗睿, 27: 李雨桐, 28: 廖珞謙, 29: 劉朋朋, 30: 邱添,
-31: 蕭沛楠, 32: 曾憲熙, 33: 謝明曦, 34: 文思穎, 35: 黃靖恩, 36: 黃正然, 37: 王嘉昕, 38: 黃煒晉, 39: 黃宇芊, 40: 吳凱峰, 41: 張晨宇.
-
-請務必只輸出嚴格格式的 JSON Array，不要附帶 Markdown 語法或任何其他文字：
+請僅返回 JSON 陣列格式，不要包含任何額外說明或 Markdown 標籤外的文字：
 [
   {"num": "01", "name": "陳柏立", "points": 1},
   {"num": "05", "name": "張可宜", "points": 2}
-]
-`;
+]`;
+
+          const candidateModels = [
+            'gemini-3-flash-preview',
+            'gemini-2.5-flash',
+            'gemini-2.0-flash'
+          ];
+
+          let response = null;
+          let lastErrorMsg = '';
+
+          for (const model of candidateModels) {
+            try {
+              const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+              response = await fetch(url, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [
+                      { text: prompt },
+                      {
+                        inline_data: {
+                          mime_type: aiMimeType.value || 'image/jpeg',
+                          data: aiImageBase64.value
+                        }
+                      }
+                    ]
+                  }]
+                })
+              });
+
+              if (response.ok) {
+                break;
+              } else {
+                const errJson = await response.json().catch(() => ({}));
+                lastErrorMsg = errJson?.error?.message || `[${model}] HTTP ${response.status}`;
+                console.warn(`Model ${model} failed:`, lastErrorMsg);
+              }
+            } catch (e) {
+              lastErrorMsg = `[${model}] Exception: ${e.message}`;
+              console.warn(`Model ${model} exception:`, e);
+            }
+          }
+
+          if (!response || !response.ok) {
+            isScanning.value = false;
+            showToast(`❌ 辨識失敗: ${lastErrorMsg || 'API Key 驗證失敗'}`);
+            return;
+          }
 
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: prompt },
-                    {
-                      inline_data: {
-                        mime_type: 'image/jpeg',
-                        data: aiImageBase64.value
-                      }
-                    }
-                  ]
-                }]
-              })
-            });
-
-            if (!response.ok) {
-              const errText = await response.text();
-              throw new Error(`API 請求失敗 (${response.status}): ${errText}`);
-            }
-
             const data = await response.json();
             const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             
@@ -1980,28 +2004,24 @@
               showToast('⚠️ 未能辨識出學號或分數，請確保照片清晰。');
             }
           } catch (err) {
-            console.error('AI Whiteboard Scan Error:', err);
-            showToast('❌ 辨識失敗: ' + (err.message || '請檢查 API Key 或照片筆跡'));
+            console.error('AI Whiteboard Scan Parsing Error:', err);
+            showToast('❌ 解析辨識結果失敗，請再試一次。');
           } finally {
             isScanning.value = false;
           }
         };
 
         const applyScanResults = () => {
-          let count = 0;
-          scanResults.value.forEach(res => {
-            const student = students.value.find(s => s.num === String(res.num).padStart(2, '0') || s.name === res.name);
-            if (student) {
-              const delta = Number(res.points) || 0;
-              student.points = Math.max(0, (student.points || 0) + delta);
-              count++;
+          scanResults.value.forEach(item => {
+            const target = students.value.find(s => s.num === item.num || s.name === item.name);
+            if (target) {
+              target.points = Math.max(0, (target.points || 0) + (item.points || 0));
             }
           });
           saveData();
-          showToast(`已成功為 ${count} 位同學更新分數！`);
+          playChimeSound('positive');
+          showToast(`✅ 已更新 ${scanResults.value.length} 位同學分數！`);
           scanResults.value = [];
-          aiImagePreview.value = null;
-          aiImageBase64.value = null;
           closeModal();
         };
 
@@ -2010,6 +2030,7 @@
         });
 
         return {
+          defaultStudents,
           students,
           searchQuery,
           isMultipleMode,
@@ -2021,6 +2042,7 @@
           summarySortKey,
           aiImagePreview,
           aiImageBase64,
+          aiMimeType,
           isScanning,
           scanResults,
           userApiKey,
@@ -2044,7 +2066,9 @@
           leaderboardStudents,
           summarySortedStudents,
           formattedTime,
-          generateVividMonsterSvg,
+          showToast,
+          saveData,
+          loadData,
           saveApiKey,
           closeModal,
           toggleMultipleMode,
@@ -2075,7 +2099,8 @@
           resetAllScores,
           handleImageUpload,
           processWhiteboardImage,
-          applyScanResults
+          applyScanResults,
+          generateVividMonsterSvg
         };
       }
     });
