@@ -552,6 +552,7 @@
     let currentStudentNum = null;
     let currentAiImageBase64 = null;
     let currentAiResults = [];
+    let currentAiUnclearList = [];
 
     // Web Audio Synthesizer
     let audioCtx = null;
@@ -1012,7 +1013,8 @@ Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT fro
           const parsed = JSON.parse(jsonClean);
 
           currentAiResults = parsed.recognized || [];
-          displayAiResults(currentAiResults, parsed.unclear || []);
+          currentAiUnclearList = parsed.unclear || [];
+          displayAiResults(currentAiResults, currentAiUnclearList);
           success = true;
           break;
         } catch (err) {}
@@ -1026,19 +1028,51 @@ Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT fro
       }
     };
 
+    window.updateAiItemPoints = function(idx, val) {
+      const pts = parseInt(val, 10);
+      if (!isNaN(pts) && pts > 0 && currentAiResults[idx]) {
+        currentAiResults[idx].points = pts;
+        displayAiResults(currentAiResults, currentAiUnclearList);
+      }
+    };
+
+    window.removeAiItem = function(idx) {
+      if (currentAiResults[idx]) {
+        currentAiResults.splice(idx, 1);
+        displayAiResults(currentAiResults, currentAiUnclearList);
+        showToast('已刪除該項辨識結果');
+      }
+    };
+
     function displayAiResults(recognized, unclear) {
+      currentAiUnclearList = unclear || currentAiUnclearList || [];
       document.getElementById('ai-result-section').classList.remove('hidden');
       document.getElementById('ai-recognized-count').textContent = `成功辨識 ${recognized.length} 個清晰座號`;
 
       const seatsContainer = document.getElementById('ai-seats-container');
       seatsContainer.innerHTML = '';
-      recognized.forEach(item => {
+      if (recognized.length === 0) {
+        seatsContainer.innerHTML = `<div class="col-span-full text-center text-xs text-slate-400 py-3">目前無辨識項目，可透過下方「手動補填」加入座號</div>`;
+      }
+      recognized.forEach((item, idx) => {
         const student = studentsData.find(s => s.num === item.seat);
         const div = document.createElement('div');
-        div.className = 'bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs flex items-center justify-between font-bold text-emerald-900';
+        div.className = 'bg-emerald-50 border border-emerald-200 rounded-xl p-2 sm:p-2.5 text-xs flex items-center justify-between font-bold text-emerald-900 gap-1';
         div.innerHTML = `
-          <span>#${item.seat.toString().padStart(2, '0')} ${student ? student.name : ''}</span>
-          <span class="bg-emerald-600 text-white px-2 py-0.5 rounded-lg">+${item.points}分</span>
+          <div class="truncate flex items-center gap-1 min-w-0 flex-1">
+            <span class="text-emerald-700 font-extrabold">#${item.seat.toString().padStart(2, '0')}</span>
+            <span class="truncate font-semibold text-slate-700">${student ? student.name : '未知'}</span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <span class="text-[11px] text-slate-400 font-normal">加</span>
+            <input type="number" min="1" max="99" value="${item.points}" 
+                   onchange="updateAiItemPoints(${idx}, this.value)" 
+                   class="w-12 text-center bg-white border border-emerald-300 focus:border-emerald-500 rounded-lg py-0.5 text-xs font-black text-emerald-800 outline-none">
+            <span class="text-[11px] text-slate-400 font-normal">分</span>
+            <button onclick="removeAiItem(${idx})" title="刪除此辨識項目" class="ml-1 text-slate-400 hover:text-rose-600 transition-colors p-1">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
         `;
         seatsContainer.appendChild(div);
       });
@@ -1046,9 +1080,9 @@ Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT fro
       const unclearBox = document.getElementById('ai-unclear-box');
       const unclearList = document.getElementById('ai-unclear-list');
       unclearList.innerHTML = '';
-      if (unclear.length > 0) {
+      if (currentAiUnclearList.length > 0) {
         unclearBox.classList.remove('hidden');
-        unclear.forEach(msg => {
+        currentAiUnclearList.forEach(msg => {
           const li = document.createElement('li');
           li.textContent = msg;
           unclearList.appendChild(li);
@@ -1077,7 +1111,7 @@ Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT fro
       const pts = parseInt(document.getElementById('manualPtsInput').value, 10) || 1;
 
       currentAiResults.push({ seat: seatNum, points: pts });
-      displayAiResults(currentAiResults, []);
+      displayAiResults(currentAiResults, currentAiUnclearList);
       showToast(`手動加入座號 #${seatNum} (+${pts}分)`);
     };
 
