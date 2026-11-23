@@ -80,6 +80,10 @@
           <i class="fa-solid fa-bell"></i>
           <span>留小息: <span id="stat-recess-count">0</span> 人</span>
         </div>
+        <button id="sync-status-btn" onclick="openModal('syncModal')" class="bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all cursor-pointer">
+          <span id="sync-dot" class="w-2 h-2 rounded-full bg-amber-300 animate-pulse"></span>
+          <span id="sync-label">連線中...</span>
+        </button>
       </div>
     </div>
   </header>
@@ -492,6 +496,130 @@
     </div>
   </div>
 
+  <!-- 7. Cloud Sync Modal (Cross-Device iPhone <-> Website Sync) -->
+  <div id="syncModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100">
+      <div class="bg-gradient-to-r from-cyan-600 to-teal-600 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+          <div>
+            <h3 class="font-extrabold text-lg">跨裝置雲端即時同步</h3>
+            <p class="text-xs text-cyan-100">iPhone 與電腦網頁版分數自動同步</p>
+          </div>
+        </div>
+        <button onclick="closeModal('syncModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto touch-scroll">
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-500">同步狀態</span>
+            <span id="sync-modal-status" class="font-extrabold text-emerald-600">已連線至雲端資料庫</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-500">最後同步時間</span>
+            <span id="sync-last-time" class="font-mono text-slate-700">尚未同步</span>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="block text-xs font-extrabold text-slate-700">班級同步代碼 (iPhone 與電腦需輸入相同代碼)</label>
+          <div class="flex gap-2">
+            <input type="text" id="syncRoomInput" value="2B-CLASS-MAIN" placeholder="例如: 2B-CLASS-MAIN"
+                   class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs font-bold uppercase focus:ring-2 focus:ring-teal-500 focus:outline-none">
+            <button onclick="changeSyncRoom()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow">
+              切換同步
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Firebase Config for External Hosting (e.g. GitHub Pages) -->
+        <div id="external-firebase-box" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+          <div class="text-xs font-extrabold text-amber-900 flex items-center gap-1.5">
+            <i class="fa-solid fa-server text-amber-600"></i>
+            <span>外部網站雲端設定 (GitHub Pages 專用)</span>
+          </div>
+          <p class="text-[11px] text-amber-800 leading-relaxed">
+            偵測到您正在外部網頁開啟此系統。請貼上您的 Firebase Web Config JSON 以啟用 iPhone 與電腦即時同步：
+          </p>
+          <textarea id="customFirebaseConfigInput" rows="3" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'
+                    class="w-full p-2 bg-white border border-amber-300 rounded-xl font-mono text-[11px] focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+          <button onclick="connectCustomFirebase()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow">
+            連接雲端資料庫
+          </button>
+        </div>
+
+        <div class="pt-1 flex gap-2">
+          <button onclick="forcePushToCloud()" class="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-xl">
+            <i class="fa-solid fa-upload mr-1"></i> 立即上傳本機分數
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Countdown Timer Modal -->
+  <div id="timerModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center space-y-5 border border-slate-100">
+      <div class="flex justify-between items-center">
+        <h3 class="font-extrabold text-lg text-slate-800">⏱️ 課堂倒數計時器</h3>
+        <button onclick="closeModal('timerModal')" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
+      <div id="timer-display" class="text-5xl font-black font-mono text-indigo-600 py-4 bg-indigo-50 rounded-2xl border border-indigo-100">03:00</div>
+      <div class="grid grid-cols-3 gap-2 text-xs font-bold">
+        <button onclick="setTimerSeconds(60)" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl">1 分鐘</button>
+        <button onclick="setTimerSeconds(180)" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl">3 分鐘</button>
+        <button onclick="setTimerSeconds(300)" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl">5 分鐘</button>
+      </div>
+      <div class="flex gap-2">
+        <button id="btn-timer-toggle" onclick="toggleTimer()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow">開始計時</button>
+        <button onclick="resetTimer()" class="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm rounded-2xl">重設</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Random Grouping Modal -->
+  <div id="groupModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-100">
+      <div class="bg-teal-600 text-white px-5 py-4 flex items-center justify-between shrink-0">
+        <h3 class="font-extrabold text-lg">👥 班級隨機分組</h3>
+        <button onclick="closeModal('groupModal')" class="text-white/80 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto touch-scroll flex-1 space-y-4">
+        <div class="flex items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+          <span class="text-xs font-bold text-slate-700">分成組數:</span>
+          <div class="flex items-center gap-2">
+            <select id="groupCountSelect" class="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold">
+              <option value="4">4 組</option>
+              <option value="6" selected>6 組</option>
+              <option value="8">8 組</option>
+              <option value="10">10 組</option>
+            </select>
+            <button onclick="generateRandomGroups()" class="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow">
+              重新隨機分組
+            </button>
+          </div>
+        </div>
+        <div id="groups-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. Reset Confirmation Modal (Replaces native confirm) -->
+  <div id="resetConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-100">
+      <div class="w-14 h-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 class="font-black text-lg text-slate-800">確定要重置全班數據嗎？</h3>
+      <p class="text-xs text-slate-500 leading-relaxed">此操作會將雲端與所有已同步裝置的分數重置為預設初始狀態，且無法復原。</p>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('resetConfirmModal')" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">取消</button>
+        <button onclick="executeResetAllData()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow">確定重置</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Message Box -->
   <div id="toast" class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
     <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
@@ -499,7 +627,11 @@
   </div>
 
   <!-- ==================== JAVASCRIPT ENGINE ==================== -->
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
     // 1. Initial 41-Student Class 2B Roster Data (Updated with ClassDojo Scores)
     const INITIAL_STUDENTS = [
       { num: 1, name: "陳柏立", points: 33, redeemed: 0, attendance: "present", note: "" },
@@ -553,6 +685,19 @@
     let currentAiImageBase64 = null;
     let currentAiResults = [];
     let currentAiUnclearList = [];
+    let savedGeminiApiKey = '';
+
+    // Firebase Cloud Sync State
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'class-2b-scoring-app';
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let syncRoomId = '2B-CLASS-MAIN';
+    let unsubscribeCloud = null;
+
+    // Timer State
+    let timerSeconds = 180;
+    let timerInterval = null;
 
     // Web Audio Synthesizer
     let audioCtx = null;
@@ -661,56 +806,165 @@
         el.classList.remove('hidden');
         if (id === 'summaryModal') renderSummary();
         if (id === 'recessModal') renderRecessList();
+        if (id === 'groupModal') generateRandomGroups();
       }
     };
 
     window.closeModal = function(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.add('hidden');
+    function updateSyncStatusUI(state, message) {
+      const dot = document.getElementById('sync-dot');
+      const label = document.getElementById('sync-label');
+      const modalStatus = document.getElementById('sync-modal-status');
+      if (!dot || !label) return;
+
+      if (state === 'connected') {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        label.textContent = `已同步 (${syncRoomId})`;
+        if (modalStatus) {
+          modalStatus.textContent = message || '已連線至雲端即時同步';
+          modalStatus.className = 'font-extrabold text-emerald-600';
+        }
+      } else if (state === 'offline') {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-300';
+        label.textContent = '本機模式 (點擊設定同步)';
+        if (modalStatus) {
+          modalStatus.textContent = message || '尚未設定雲端資料庫';
+          modalStatus.className = 'font-extrabold text-amber-600';
+        }
+      } else if (state === 'error') {
+        dot.className = 'w-2 h-2 rounded-full bg-rose-400';
+        label.textContent = '同步異常';
+        if (modalStatus) {
+          modalStatus.textContent = message || '雲端同步發生錯誤';
+          modalStatus.className = 'font-extrabold text-rose-600';
+        }
+      }
+    }
+
+    // Initialize Firebase Auth & Real-Time Firestore Subscription
+    async function initCloudSync(firebaseConfig) {
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // RULE 3: Authenticate BEFORE any Firestore operation
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          const cred = await signInWithCustomToken(auth, __initial_auth_token);
+          currentUser = cred.user;
+        } else {
+          const cred = await signInAnonymously(auth);
+          currentUser = cred.user;
+        }
+
+        subscribeToSyncRoom();
+      } catch (err) {
+        console.error('Firebase init failed:', err);
+        updateSyncStatusUI('error', '雲端驗證失敗，請檢查設定');
+      }
+    }
+
+    function subscribeToSyncRoom() {
+      if (!db || !currentUser) return;
+      if (unsubscribeCloud) {
+        unsubscribeCloud();
+        unsubscribeCloud = null;
+      }
+
+      // RULE 1: Strict public data path /artifacts/{appId}/public/data/{collectionName}/{docId}
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'class_scores', syncRoomId);
+
+      unsubscribeCloud = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (Array.isArray(data.students) && data.students.length > 0) {
+            studentsData = data.students;
+            renderStudentsGrid(document.getElementById('searchInput').value);
+            updateHeaderStats();
+          }
+          const timeStr = data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString('zh-HK') : new Date().toLocaleTimeString('zh-HK');
+          const lastTimeEl = document.getElementById('sync-last-time');
+          if (lastTimeEl) lastTimeEl.textContent = timeStr;
+          updateSyncStatusUI('connected', `已即時同步 (${syncRoomId})`);
+        } else {
+          // Initialize cloud document with default class scores on first run
+          saveState();
+        }
+      }, (error) => {
+        console.error('Firestore snapshot error:', error);
+        updateSyncStatusUI('error', '同步讀取受限，請確認網路或權限');
+      });
+    }
+
+    window.changeSyncRoom = function() {
+      const input = document.getElementById('syncRoomInput');
+      const newRoom = (input ? input.value.trim().toUpperCase() : '') || '2B-CLASS-MAIN';
+      syncRoomId = newRoom;
+      if (input) input.value = newRoom;
+      subscribeToSyncRoom();
+      showToast(`已切換至同步代碼: ${syncRoomId}`);
     };
 
-    // Toast Notification
-    window.showToast = function(msg, isError = false) {
-      const toast = document.getElementById('toast');
-      const toastText = document.getElementById('toast-text');
-      const toastIcon = document.getElementById('toast-icon');
-      if (!toast || !toastText) return;
-      toastText.textContent = msg;
-      toastIcon.className = isError ? 'fa-solid fa-circle-exclamation text-rose-400 text-lg' : 'fa-solid fa-circle-check text-emerald-400 text-lg';
-      toast.classList.remove('translate-y-20', 'opacity-0');
-      setTimeout(() => {
-        toast.classList.add('translate-y-20', 'opacity-0');
-      }, 3000);
+    window.connectCustomFirebase = async function() {
+      const raw = document.getElementById('customFirebaseConfigInput').value.trim();
+      if (!raw) {
+        showToast('請先貼上 Firebase Config JSON', true);
+        return;
+      }
+      try {
+        const parsedConfig = JSON.parse(raw);
+        await initCloudSync(parsedConfig);
+        document.getElementById('external-firebase-box').classList.add('hidden');
+        showToast('雲端資料庫連接成功！');
+      } catch (e) {
+        showToast('JSON 格式不正確，請重新檢查', true);
+      }
+    };
+
+    window.forcePushToCloud = async function() {
+      if (!db || !currentUser) {
+        showToast('尚未連接雲端資料庫', true);
+        return;
+      }
+      await saveState();
+      showToast('已強制將目前分數上傳至雲端！');
     };
 
     // System Initialization & Storage
     function init() {
-      try {
-        const saved = localStorage.getItem('2b_class_students_v5');
-        if (saved) {
-          studentsData = JSON.parse(saved);
-        } else {
-          studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
-        }
-
-        const savedKey = localStorage.getItem('gemini_api_key');
-        if (savedKey) {
-          document.getElementById('userApiKey').value = savedKey;
-        }
-      } catch (e) {
-        studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
-      }
-
+      studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
       populateManualSeatDropdown();
       renderStudentsGrid();
       updateHeaderStats();
+
+      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        try {
+          const config = JSON.parse(__firebase_config);
+          initCloudSync(config);
+        } catch (e) {
+          updateSyncStatusUI('offline');
+        }
+      } else {
+        updateSyncStatusUI('offline', '外部瀏覽器模式 (點擊設定雲端同步)');
+        const extBox = document.getElementById('external-firebase-box');
+        if (extBox) extBox.classList.remove('hidden');
+      }
     }
 
-    function saveState() {
-      try {
-        localStorage.setItem('2b_class_students_v5', JSON.stringify(studentsData));
-      } catch (e) {}
+    async function saveState() {
       updateHeaderStats();
+      if (!db || !currentUser) return;
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'class_scores', syncRoomId);
+        await setDoc(docRef, {
+          students: studentsData,
+          updatedAt: Date.now(),
+          updatedBy: currentUser.uid
+        });
+      } catch (e) {
+        console.error('Failed to sync state to cloud:', e);
+        showToast('雲端同步寫入失敗，請檢查網路', true);
+      }
     }
 
     function updateHeaderStats() {
@@ -940,8 +1194,8 @@
 
     // Gemini 3.8 Flash API Scanner Engine
     window.saveApiKey = function(key) {
-      localStorage.setItem('gemini_api_key', key.trim());
-      showToast('API Key 已儲存');
+      savedGeminiApiKey = key.trim();
+      showToast('API Key 已載入');
     };
 
     window.handleImageSelected = function(e) {
@@ -959,7 +1213,7 @@
     };
 
     window.processWhiteboardImage = async function() {
-      const apiKey = document.getElementById('userApiKey').value.trim() || localStorage.getItem('gemini_api_key');
+      const apiKey = document.getElementById('userApiKey').value.trim() || savedGeminiApiKey;
       if (!apiKey) {
         showToast('請先貼上有效的 Gemini API Key！', true);
         return;
@@ -1214,12 +1468,83 @@ Rule 2: If any number or handwriting is blurry, smudged, or unclear, SKIP IT fro
     };
 
     window.confirmResetAllData = function() {
-      if (confirm('確定要將全班分數重置回預設 Initial 狀態嗎？')) {
-        studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
-        saveState();
-        renderStudentsGrid();
-        showToast('全班分數與紀錄已重置');
+      openModal('resetConfirmModal');
+    };
+
+    window.executeResetAllData = async function() {
+      studentsData = JSON.parse(JSON.stringify(INITIAL_STUDENTS));
+      await saveState();
+      renderStudentsGrid();
+      closeModal('resetConfirmModal');
+      showToast('全班分數與紀錄已重置並同步至雲端');
+    };
+
+    // Timer & Grouping Utilities
+    window.setTimerSeconds = function(sec) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerSeconds = sec;
+      updateTimerDisplay();
+      document.getElementById('btn-timer-toggle').textContent = '開始計時';
+    };
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+      const secs = (timerSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('timer-display').textContent = `${mins}:${secs}`;
+    }
+
+    window.toggleTimer = function() {
+      const btn = document.getElementById('btn-timer-toggle');
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        btn.textContent = '繼續計時';
+      } else {
+        btn.textContent = '暫停計時';
+        timerInterval = setInterval(() => {
+          if (timerSeconds > 0) {
+            timerSeconds--;
+            updateTimerDisplay();
+          } else {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            btn.textContent = '時間到！';
+            playSound('win');
+            showToast('⏰ 倒數計時結束！');
+          }
+        }, 1000);
       }
+    };
+
+    window.resetTimer = function() {
+      setTimerSeconds(180);
+    };
+
+    window.generateRandomGroups = function() {
+      const numGroups = parseInt(document.getElementById('groupCountSelect').value, 10) || 6;
+      const shuffled = [...studentsData].sort(() => Math.random() - 0.5);
+      const groups = Array.from({ length: numGroups }, () => []);
+      shuffled.forEach((student, idx) => {
+        groups[idx % numGroups].push(student);
+      });
+
+      const container = document.getElementById('groups-container');
+      container.innerHTML = '';
+      groups.forEach((members, idx) => {
+        const div = document.createElement('div');
+        div.className = 'bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2';
+        div.innerHTML = `
+          <div class="font-extrabold text-xs text-teal-700 flex items-center justify-between border-b border-slate-200 pb-1">
+            <span>第 ${idx + 1} 組</span>
+            <span class="text-slate-400">${members.length} 人</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${members.map(m => `<span class="px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700">#${m.num.toString().padStart(2, '0')} ${m.name}</span>`).join('')}
+          </div>
+        `;
+        container.appendChild(div);
+      });
     };
 
     // Execute Startup
